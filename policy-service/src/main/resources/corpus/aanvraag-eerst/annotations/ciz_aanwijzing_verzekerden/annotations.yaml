@@ -1,0 +1,29 @@
+---
+# Stand-off notes (RFC-005) op de CIZ-Aanwijzing Wlz-verzekering en buitenland
+# (aanvraag-eerst-corpus).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. verzekeringsvereiste: vergewist_van_wlz_verzekering.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_verzekerden
+      selector:
+        type: TextQuoteSelector
+        exact: Om in aanmerking te komen voor zorg vanuit de Wet langdurige zorg moet de cliënt Wlz-verzekerd zijn. Het CIZ vergewist zich daarvan bij de aanvraag (artikel 3.1 van de Regeling langdurige zorg).
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Twee wegen naar "vergewist": een bekende Nederlandse zorgverzekeraar met
+          polisnummer, of een uitzonderingsgroep (gemoedsbezwaarden,
+          verdragsgerechtigden, gedetineerden, militairen). Deze aanwijzing vult
+          de open norm van Wlz 3.2.3 in.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_verzekerden/vergewist_van_wlz_verzekering
+        purpose: linking

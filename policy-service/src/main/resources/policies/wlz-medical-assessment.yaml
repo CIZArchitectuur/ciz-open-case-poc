@@ -1,0 +1,173 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_wlz_medical_assessment_poc
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-09-16'
+valid_from: '2026-09-16'
+url: https://github.com/CIZArchitectuur/ciz-open-case-poc
+name: CIZ medisch-inhoudelijke Wlz-beoordeling (PoC)
+
+articles:
+  - number: '1'
+    text: |-
+      Deze PoC-regel ondersteunt de medisch-inhoudelijke beoordeling. De feiten
+      moeten door een bevoegde beoordelaar uit betrouwbare bronstukken zijn
+      gevalideerd voordat deze regel wordt uitgevoerd.
+    machine_readable:
+      execution:
+        parameters:
+          - name: diagnose_vastgesteld
+            type: boolean
+            required: true
+            description: Een diagnose is vastgelegd in de medische informatie.
+          - name: diagnose_door_ter_zake_kundige
+            type: boolean
+            required: true
+            description: De diagnose is gesteld door een voor deze diagnose bevoegde ter zake kundige.
+          - name: behandeling_en_effect_beschreven
+            type: boolean
+            required: true
+            description: Behandeling, behandelresultaat en resterende mogelijkheden zijn beschreven.
+          - name: prognose_beschreven
+            type: boolean
+            required: true
+            description: De verwachte ontwikkeling van aandoening en functioneren is onderbouwd.
+          - name: blijvende_zorgbehoefte_onderbouwd
+            type: boolean
+            required: true
+            description: De blijvende behoefte aan intensieve zorg is medisch-inhoudelijk onderbouwd.
+          - name: permanent_toezicht_nodig
+            type: boolean
+            required: true
+            description: Permanent toezicht is nodig om ernstig nadeel te voorkomen.
+          - name: vierentwintig_uurs_zorg_nabij_nodig
+            type: boolean
+            required: true
+            description: Vierentwintig uur per dag zorg in de nabijheid is nodig omdat de cliënt niet op relevante momenten zelf hulp kan inroepen.
+          - name: medisch_adviseur_nodig
+            type: boolean
+            required: true
+            description: De beoordelaar vindt aanvullend advies van een medisch adviseur nodig.
+          - name: medisch_adviseur_geraadpleegd
+            type: boolean
+            required: true
+            description: Een medisch adviseur is geraadpleegd. Kies nee wanneer advies niet nodig is.
+          - name: medisch_advies_bevestigt_criteria
+            type: boolean
+            required: true
+            description: Het medisch advies bevestigt de medische toegangscriteria. Kies nee wanneer advies niet nodig is.
+          - name: beoordelingsmotivering
+            type: string
+            required: true
+            description: Motiveer op basis van de gevalideerde bronstukken waarom de medische criteria wel of niet zijn aangetoond.
+        input:
+          - name: diagnose_vastgesteld
+            type: boolean
+            source: {}
+          - name: diagnose_door_ter_zake_kundige
+            type: boolean
+            source: {}
+          - name: behandeling_en_effect_beschreven
+            type: boolean
+            source: {}
+          - name: prognose_beschreven
+            type: boolean
+            source: {}
+          - name: blijvende_zorgbehoefte_onderbouwd
+            type: boolean
+            source: {}
+          - name: permanent_toezicht_nodig
+            type: boolean
+            source: {}
+          - name: vierentwintig_uurs_zorg_nabij_nodig
+            type: boolean
+            source: {}
+          - name: medisch_adviseur_nodig
+            type: boolean
+            source: {}
+          - name: medisch_adviseur_geraadpleegd
+            type: boolean
+            source: {}
+          - name: medisch_advies_bevestigt_criteria
+            type: boolean
+            source: {}
+          - name: beoordelingsmotivering
+            type: string
+            source: {}
+        output:
+          - name: medische_onderbouwing_compleet
+            type: boolean
+          - name: intensieve_zorgbehoefte_vastgesteld
+            type: boolean
+          - name: medisch_advies_afgerond
+            type: boolean
+          - name: voldoet_aan_medische_wlz_criteria
+            type: boolean
+          - name: medische_beoordeling_compleet
+            type: boolean
+        actions:
+          - output: medische_onderbouwing_compleet
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $diagnose_vastgesteld
+                  value: true
+                - operation: EQUALS
+                  subject: $diagnose_door_ter_zake_kundige
+                  value: true
+                - operation: EQUALS
+                  subject: $behandeling_en_effect_beschreven
+                  value: true
+                - operation: EQUALS
+                  subject: $prognose_beschreven
+                  value: true
+          - output: intensieve_zorgbehoefte_vastgesteld
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $permanent_toezicht_nodig
+                  value: true
+                - operation: EQUALS
+                  subject: $vierentwintig_uurs_zorg_nabij_nodig
+                  value: true
+          - output: medisch_advies_afgerond
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $medisch_adviseur_nodig
+                  value: false
+                - operation: EQUALS
+                  subject: $medisch_adviseur_geraadpleegd
+                  value: true
+          - output: voldoet_aan_medische_wlz_criteria
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $medische_onderbouwing_compleet
+                  value: true
+                - operation: EQUALS
+                  subject: $blijvende_zorgbehoefte_onderbouwd
+                  value: true
+                - operation: EQUALS
+                  subject: $intensieve_zorgbehoefte_vastgesteld
+                  value: true
+                - operation: EQUALS
+                  subject: $medisch_advies_afgerond
+                  value: true
+                - operation: OR
+                  conditions:
+                    - operation: EQUALS
+                      subject: $medisch_adviseur_nodig
+                      value: false
+                    - operation: EQUALS
+                      subject: $medisch_advies_bevestigt_criteria
+                      value: true
+          - output: medische_beoordeling_compleet
+            value:
+              operation: EQUALS
+              subject: $medisch_advies_afgerond
+              value: true

@@ -1,0 +1,5 @@
+pytest==8.3.5
+requests==2.32.3
+jsonschema==4.23.0
+PyYAML==6.0.2
+

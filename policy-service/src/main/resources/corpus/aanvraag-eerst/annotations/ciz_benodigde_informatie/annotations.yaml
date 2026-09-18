@@ -1,0 +1,78 @@
+---
+# Stand-off notes (RFC-005) op de CIZ-notitie Benodigde informatie bij een
+# Wlz-aanvraag (aanvraag-eerst-corpus).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. diagnose: vereiste_gegevens_en_bescheiden_aanwezig.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_benodigde_informatie
+      selector:
+        type: TextQuoteSelector
+        exact: Voor de beoordeling van een Wlz-aanvraag heeft het CIZ medisch-diagnostische informatie nodig. Uit die informatie moet blijken welke diagnose is gesteld, door wie en wanneer, en van welke instantie de informatie afkomstig is.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Dit artikel vult de open norm van Awb 4:2 lid 2 in ("de gegevens en
+          bescheiden die voor de beslissing nodig zijn") en laat zélf één begrip
+          open: wie ter zake kundig is. Die norm is P1 — hard vereist, zonder
+          default: kan het CIZ de bevoegdheid niet toetsen, dan hoort de vraag
+          niet beantwoordbaar te zijn.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_benodigde_informatie/vereiste_gegevens_en_bescheiden_aanwezig
+        purpose: linking
+  # LINKING — art. valide_diagnose: valide_diagnose.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_benodigde_informatie
+      selector:
+        type: TextQuoteSelector
+        exact: De diagnose is valide als er ten minste één diagnose aanwezig is — handmatig of via NLP — én die diagnose voorkomt in de SNOMED CT-lijst van klinische bevindingen.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Twee wegen naar een diagnose (handmatig overgenomen of met
+          documentclassificatie geëxtraheerd), één gemeenschappelijke eis: een
+          match in de SNOMED CT-lijst. Die match is als extern validatie-oordeel
+          gemodelleerd.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_benodigde_informatie/valide_diagnose
+        purpose: linking
+  # LINKING — art. herkomst: valide_herkomst_medische_informatie.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_benodigde_informatie
+      selector:
+        type: TextQuoteSelector
+        exact: De herkomst van de medische informatie moet herleidbaar zijn tot de behandelende instantie.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Drie gelijkwaardige kenmerken, één volstaat: ondertekening door een ter
+          zake kundige, een stempel of logo, of een herleidbaar document. De
+          ondertekening is hier bewust een blad — het corpus modelleert de
+          bevoegdheidstoets één keer, bij de diagnose.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_benodigde_informatie/valide_herkomst_medische_informatie
+        purpose: linking

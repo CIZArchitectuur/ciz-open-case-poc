@@ -1,0 +1,119 @@
+---
+# Aanvraag-eerst-corpus: de Wlz als bijzondere wet naast de Awb.
+#
+# Bijzonder aan dit bestand: het is een WET die een open norm van een ANDERE
+# WET invult. De Awb noemt in artikel 4:5, eerste lid, onder a "enig wettelijk
+# voorschrift voor het in behandeling nemen van de aanvraag" zonder te zeggen
+# wélk voorschrift — de bijzondere wet vult dat in (lex specialis). Hier is dat
+# het verzekerd-vereiste: alleen een verzekerde heeft recht op Wlz-zorg, dus
+# alleen voor een verzekerde kan het CIZ een indicatiebesluit nemen.
+#
+# De Wlz zegt echter niet hoe het CIZ zich van die verzekering vergewist —
+# dat is opnieuw een open norm, ingevuld door het CIZ-uitvoeringsbeleid
+# (Aanwijzing Wlz-verzekering en buitenland). Zo ontstaat de keten
+# WET -> WET -> UITVOERINGSBELEID, zonder dat enige laag de volgende kent.
+#
+# Alleen artikel 3.2.3 is uitvoerbaar: dit corpus gaat over de aanvraag, niet
+# over de materiële toegang (die staat in corpus/wet-eerst).
+#
+# Artikeltekst: officiële geconsolideerde tekst (BWB-toestand BWBR0035917,
+# 2024-07-01) — één regel per lid, zodat notes binnen één regel kunnen ankeren.
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: wet_langdurige_zorg
+regulatory_layer: WET
+bwb_id: BWBR0035917
+publication_date: '2014-12-03'
+valid_from: '2024-07-01'
+url: https://wetten.overheid.nl/BWBR0035917/2024-07-01
+name: Wet langdurige zorg
+
+articles:
+  # ── 3.2.3 Aanvraag en indicatiebesluit ──────────────────────────────────────
+  # Lid 1: het CIZ stelt het recht op zorg op aanvraag vast — en wel voor een
+  # *verzekerde*. Dat verzekerd-vereiste is het wettelijk voorschrift dat de
+  # Awb in 4:5 lid 1 onder a openlaat. Lid 3 (BSN) en lid 4 (informatieplicht)
+  # zijn in dit corpus belegd bij het uitvoeringsbeleid dat de Awb-vereisten
+  # concretiseert (Definitie complete aanvraag, Benodigde informatie).
+  - number: '3.2.3'
+    url: https://wetten.overheid.nl/BWBR0035917/2024-07-01#Artikel3.2.3
+    text: |-
+      Het recht op zorg wordt op aanvraag van de verzekerde in een indicatiebesluit vastgesteld door het CIZ. Het recht op zorg dat wordt vastgesteld in het indicatiebesluit sluit aan bij de behoefte van de verzekerde.
+      Een aanvraag als bedoeld in het eerste lid kan worden gedaan door familie als bedoeld in artikel 1, eerste lid, onderdeel i, van de Wet zorg en dwang psychogeriatrische en verstandelijk gehandicapte cliënten, indien de verzekerde wilsonbekwaam is.
+      De verzekerde vermeldt bij de aanvraag zijn burgerservicenummer.
+      De verzekerde verstrekt op verzoek of uit eigen beweging alle informatie, waarvan het hem redelijkerwijs duidelijk moet zijn dat die van belang kan zijn voor de beoordeling van het recht op zorg, en is verplicht mee te werken door zich te laten onderzoeken door het CIZ of door daartoe door het CIZ aangewezen personen.
+      Het CIZ wijst de verzekerde bij de aanvraag op het recht op cliëntondersteuning, bedoeld in artikel 2.2.4, eerste lid, onder a, van de Wet maatschappelijke ondersteuning 2015.
+      Bij of krachtens algemene maatregel van bestuur kunnen regels worden gesteld over de wijze waarop de indicatie tot stand komt en over de inrichting en geldigheidsduur van het indicatiebesluit.
+    machine_readable:
+      # De bijzondere wet meldt zich aan bij de algemene wet: dít is het
+      # wettelijk voorschrift dat de Awb in 4:5 lid 1 onder a openlaat.
+      implements:
+        - law: algemene_wet_bestuursrecht
+          article: '4:5'
+          open_term: voldaan_aan_overige_wettelijke_voorschriften
+          gelet_op: >-
+            Gelet op artikel 4:5, eerste lid, onder a, van de Algemene wet
+            bestuursrecht juncto artikel 3.2.3, eerste lid, van de Wet
+            langdurige zorg: het recht op zorg wordt vastgesteld op aanvraag
+            van de verzekerde.
+      enables:
+        - regulatory_layer: UITVOERINGSBELEID
+          subject: >-
+            De wijze waarop het CIZ zich vergewist van de Wlz-verzekering van
+            de aanvrager (Aanwijzing Wlz-verzekering en buitenland, jo.
+            artikel 3.1 van de Regeling langdurige zorg).
+      open_terms:
+        # P2: zonder de aanwijzing is de verzekering "niet vastgesteld" en dus
+        # niet voldaan aan het wettelijk voorschrift — conservatief, want het
+        # CIZ mag geen indicatiebesluit nemen voor een niet-verzekerde.
+        - id: vergewist_van_wlz_verzekering
+          description: >-
+            Het CIZ heeft zich ervan vergewist dat de aanvrager verzekerd is
+            ingevolge de Wet langdurige zorg (lid 1), of dat een
+            uitzonderingsgroep van toepassing is.
+          type: boolean
+          required: true
+          delegated_to: CIZ
+          delegation_type: UITVOERINGSBELEID
+          legal_basis: >-
+            artikel 3.2.3, eerste lid, Wet langdurige zorg jo. artikel 3.1 van
+            de Regeling langdurige zorg (vergewisplicht)
+          default:
+            actions:
+              - output: vergewist_van_wlz_verzekering
+                value: false
+      execution:
+        # Manifest: de bladeren van de vergewis-subboom. Deze namen reizen mee
+        # naar de aanwijzing die de open norm invult; alle overige parameters
+        # van de aanvraagquery blijven achter bij de Awb.
+        parameters:
+          - name: naam_zorgverzekeraar
+            type: string
+            required: false
+          - name: polisnummer_aanwezig
+            type: boolean
+            required: false
+          - name: uitzondering_op_verzekering
+            type: boolean
+            required: false
+        output:
+          - name: voldaan_aan_overige_wettelijke_voorschriften
+            type: boolean
+          - name: vergewist_van_wlz_verzekering
+            type: boolean
+            description: Her-emissie van de open term (zichtbaar in trace/BDD).
+        actions:
+          - output: vergewist_van_wlz_verzekering
+            value: $vergewist_van_wlz_verzekering
+          - output: voldaan_aan_overige_wettelijke_voorschriften
+            legal_basis:
+              law: Wet langdurige zorg
+              bwb_id: BWBR0035917
+              article: 3.2.3
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0035917/2024-07-01#Artikel3.2.3
+              juriconnect: jci1.3:c:BWBR0035917&artikel=3.2.3
+              explanation: >-
+                Het enige aanvullende wettelijke voorschrift dat dit corpus
+                modelleert, is het verzekerd-vereiste van lid 1: het CIZ stelt
+                het recht op zorg vast op aanvraag van de verzekerde.
+            value: $vergewist_van_wlz_verzekering

@@ -1,0 +1,29 @@
+---
+# Stand-off notes (RFC-005) op de CIZ-notitie Definitie complete aanvraag
+# (aanvraag-eerst-corpus).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. persoonsgegevens: vereiste_persoonsgegevens_aanwezig.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_definitie_complete_aanvraag
+      selector:
+        type: TextQuoteSelector
+        exact: 'Een aanvraag is administratief volledig als de aanvraag de gegevens bevat die het CIZ nodig heeft om de aanvrager te identificeren en te bereiken: de achternaam en voorletters, de geboortedatum, het burgerservicenummer, en het adres (straat, huisnummer, postcode, woonplaats en land).'
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Dit artikel vult de open norm "de naam en het adres van de aanvrager"
+          (Awb 4:2 lid 1 onder a) in, gegrond op de persoonsgegevens van Wet BRP
+          2.7 en het BSN-vereiste van Wlz 3.2.3 lid 2. Het land mag ook in het
+          veld voor een afwijkend land staan (cliënt in het buitenland).
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_definitie_complete_aanvraag/vereiste_persoonsgegevens_aanwezig
+        purpose: linking

@@ -1,0 +1,142 @@
+openapi: 3.0.3
+info:
+  title: Operaton workflow boundary
+  version: 2.1.4
+  description: The documented subset of the Operaton REST API used by the case-service adapter.
+servers:
+  - url: /engine-rest
+paths:
+  /process-definition/key/{processDefinitionKey}/start:
+    post:
+      tags: [Workflow]
+      operationId: startProcessInstance
+      parameters:
+        - name: processDefinitionKey
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartProcessRequest' }
+      responses:
+        '200':
+          description: Process instance started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessInstance' }
+  /history/process-instance:
+    get:
+      tags: [Workflow]
+      operationId: findProcessInstances
+      parameters:
+        - name: processInstanceBusinessKey
+          in: query
+          schema: { type: string }
+        - name: processDefinitionKey
+          in: query
+          schema: { type: string }
+        - name: processInstanceId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Historic and running process instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProcessInstance' }
+  /history/task:
+    get:
+      tags: [Workflow]
+      operationId: findTasks
+      parameters:
+        - name: processInstanceBusinessKey
+          in: query
+          schema: { type: string }
+        - name: processDefinitionKey
+          in: query
+          schema: { type: string }
+        - name: taskId
+          in: query
+          schema: { type: string }
+        - name: sortBy
+          in: query
+          schema: { type: string, enum: [startTime] }
+        - name: sortOrder
+          in: query
+          schema: { type: string, enum: [asc] }
+      responses:
+        '200':
+          description: Historic and active user tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HistoricTask' }
+  /task/{taskId}/complete:
+    post:
+      tags: [Workflow]
+      operationId: completeUserTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompleteTaskRequest' }
+      responses:
+        '204':
+          description: Task completed
+components:
+  schemas:
+    StartProcessRequest:
+      type: object
+      required: [businessKey, variables]
+      properties:
+        businessKey: { type: string }
+        variables:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/VariableValue' }
+    CompleteTaskRequest:
+      type: object
+      required: [variables]
+      properties:
+        variables:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/VariableValue' }
+    VariableValue:
+      type: object
+      required: [value, type]
+      properties:
+        value: {}
+        type: { type: string }
+    ProcessInstance:
+      type: object
+      x-class-extra-annotation: '@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)'
+      required: [id]
+      properties:
+        id: { type: string }
+        businessKey: { type: string, nullable: true }
+        processDefinitionId: { type: string }
+        processDefinitionKey: { type: string }
+        startTime: { type: string }
+        endTime: { type: string, nullable: true }
+        state: { type: string, nullable: true }
+    HistoricTask:
+      type: object
+      x-class-extra-annotation: '@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)'
+      required: [id, processInstanceId, taskDefinitionKey, name, startTime]
+      properties:
+        id: { type: string }
+        processInstanceId: { type: string }
+        processDefinitionId: { type: string }
+        taskDefinitionKey: { type: string }
+        name: { type: string }
+        startTime: { type: string }
+        endTime: { type: string, nullable: true }

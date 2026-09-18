@@ -1,0 +1,21 @@
+ALTER TABLE cases
+    ADD COLUMN last_name VARCHAR(100) NOT NULL DEFAULT '',
+    ADD COLUMN initials VARCHAR(20) NOT NULL DEFAULT '',
+    ADD COLUMN citizen_service_number VARCHAR(9) NOT NULL DEFAULT '',
+    ADD COLUMN street VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN house_number VARCHAR(20) NOT NULL DEFAULT '',
+    ADD COLUMN postal_code VARCHAR(12) NOT NULL DEFAULT '',
+    ADD COLUMN city VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN country VARCHAR(80) NOT NULL DEFAULT '';
+
+UPDATE cases SET last_name = client_name WHERE last_name = '';
+
+ALTER TABLE cases
+    ALTER COLUMN last_name DROP DEFAULT,
+    ALTER COLUMN initials DROP DEFAULT,
+    ALTER COLUMN citizen_service_number DROP DEFAULT,
+    ALTER COLUMN street DROP DEFAULT,
+    ALTER COLUMN house_number DROP DEFAULT,
+    ALTER COLUMN postal_code DROP DEFAULT,
+    ALTER COLUMN city DROP DEFAULT,
+    ALTER COLUMN country DROP DEFAULT;

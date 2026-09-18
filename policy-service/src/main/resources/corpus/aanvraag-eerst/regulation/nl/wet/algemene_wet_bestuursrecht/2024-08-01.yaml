@@ -1,0 +1,258 @@
+---
+# Aanvraag-eerst-corpus: de Awb als vertrekpunt van de CIZ-aanvraagketen.
+#
+# De wortelvraag ("kan de aanvraag in behandeling worden genomen?") is hier
+# waar zij hoort: in de Algemene wet bestuursrecht. Artikel 4:2 somt de
+# vereisten op maar vult ze niet in — "de naam en het adres", "ondertekend",
+# "de gegevens en bescheiden die voor de beslissing nodig zijn" zijn open
+# normen die het uitvoeringsbeleid van het CIZ concretiseert. De wet noemt dat
+# uitvoeringsbeleid nergens: elke aanwijzing meldt zich zélf aan via
+# `implements` (IoC, RFC-003).
+#
+# Met alléén dit bestand geladen is de wet al uitvoerbaar: de P2-defaults
+# vuren (elke open norm "niet vastgesteld" ⇒ false ⇒ aanvraag niet compleet)
+# en de P3-norm van 4:5 valt op null terug ("geen aanvullende wettelijke
+# voorschriften"). Elke aanwijzing die erbij geladen wordt, verfijnt het
+# antwoord.
+#
+# Artikeltekst: geconsolideerde tekst BWBR0005537 (toestand 2024-08-01),
+# overgenomen uit corpus/referentie/reference-documents/algemene_wet_bestuursrecht
+# — één regel per lid, zodat notes binnen één regel kunnen ankeren.
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: algemene_wet_bestuursrecht
+regulatory_layer: WET
+bwb_id: BWBR0005537
+publication_date: '1992-06-04'
+valid_from: '2024-08-01'
+url: https://wetten.overheid.nl/BWBR0005537/2024-08-01
+name: Algemene wet bestuursrecht
+
+articles:
+  # ── 2:15 Elektronische weg (tekst; annotatie-anker) ─────────────────────────
+  # Aangehaald door 4:5 lid 1 onder b als zelfstandige weigeringsgrond; in dit
+  # corpus niet uitvoerbaar gemodelleerd (het CIZ-portaal staat de
+  # elektronische weg open).
+  - number: '2:15'
+    url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel2:15
+    text: |-
+      Een bericht kan elektronisch naar een bestuursorgaan worden verzonden voor zover het bestuursorgaan kenbaar heeft gemaakt dat deze weg is geopend. Het bestuursorgaan kan nadere eisen stellen aan het gebruik van de elektronische weg.
+      Een bestuursorgaan kan elektronisch verschafte gegevens en bescheiden weigeren voor zover de aanvaarding daarvan tot een onevenredige belasting voor het bestuursorgaan zou leiden.
+      Een bestuursorgaan kan een elektronisch verzonden bericht weigeren voor zover de betrouwbaarheid of vertrouwelijkheid van dit bericht onvoldoende is gewaarborgd, gelet op de aard en de inhoud van het bericht en het doel waarvoor het wordt gebruikt.
+      Het bestuursorgaan deelt een weigering op grond van dit artikel zo spoedig mogelijk aan de afzender mede.
+
+  # ── 4:2 Vereisten aan de aanvraag ───────────────────────────────────────────
+  # Het hart van dit corpus. Lid 1 stelt drie vereisten waarvan er twee open
+  # zijn (wélke persoonsgegevens? wanneer is "ondertekend" geldig?) en één
+  # gesloten genoeg om als blad te modelleren (de dagtekening en de aanduiding
+  # van de gevraagde beschikking). Lid 2 is de klassieke open norm: "de
+  # gegevens en bescheiden die voor de beslissing nodig zijn" — wat dat bij een
+  # Wlz-aanvraag betekent, staat in het CIZ-uitvoeringsbeleid.
+  - number: '4:2'
+    url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel4:2
+    text: |-
+      De aanvraag wordt ondertekend en bevat ten minste: a. de naam en het adres van de aanvrager; b. de dagtekening; c. een aanduiding van de beschikking die wordt gevraagd.
+      De aanvrager verschaft voorts de gegevens en bescheiden die voor de beslissing op de aanvraag nodig zijn en waarover hij redelijkerwijs de beschikking kan krijgen.
+    machine_readable:
+      enables:
+        - regulatory_layer: UITVOERINGSBELEID
+          subject: >-
+            Concretisering van de aanvraagvereisten voor een Wlz-aanvraag:
+            welke persoonsgegevens (Definitie complete aanvraag), wanneer een
+            ondertekening geldig is (Aanwijzing handtekening) en welke
+            gegevens en bescheiden nodig zijn (Benodigde informatie bij een
+            Wlz-aanvraag).
+      open_terms:
+        # P2-drieluik: zonder uitvoeringsbeleid is elk vereiste "niet
+        # vastgesteld" en is de aanvraag dus niet compleet — de wet degradeert
+        # netjes in plaats van te falen.
+        - id: vereiste_persoonsgegevens_aanwezig
+          description: >-
+            De naam en het adres van de aanvrager zijn aanwezig (lid 1 onder
+            a), geconcretiseerd voor een Wlz-aanvraag: welke persoonsgegevens
+            het bestuursorgaan nodig heeft volgt uit artikel 2.7 van de Wet
+            basisregistratie personen en artikel 3.2.3, tweede lid, Wlz (BSN).
+          type: boolean
+          required: true
+          delegated_to: CIZ
+          delegation_type: UITVOERINGSBELEID
+          legal_basis: artikel 4:2, eerste lid, onder a, Algemene wet bestuursrecht
+          default:
+            actions:
+              - output: vereiste_persoonsgegevens_aanwezig
+                value: false
+        - id: aanvraag_juist_ondertekend
+          description: >-
+            De aanvraag is rechtsgeldig ondertekend (lid 1, aanhef). Wie mag
+            ondertekenen — de cliënt zelf, een gemachtigde, een
+            gevolmachtigde of wettelijk vertegenwoordiger — en wanneer een
+            uitzondering op het handtekeningvereiste geldt, is uitgewerkt in
+            het CIZ-uitvoeringsbeleid.
+          type: boolean
+          required: true
+          delegated_to: CIZ
+          delegation_type: UITVOERINGSBELEID
+          legal_basis: artikel 4:2, eerste lid, Algemene wet bestuursrecht
+          default:
+            actions:
+              - output: aanvraag_juist_ondertekend
+                value: false
+        - id: vereiste_gegevens_en_bescheiden_aanwezig
+          description: >-
+            De aanvrager heeft de gegevens en bescheiden verschaft die voor de
+            beslissing op de aanvraag nodig zijn (lid 2). Welke dat bij een
+            Wlz-aanvraag zijn — medische informatie, een diagnose door een ter
+            zake kundige, een herleidbare herkomst — bepaalt het CIZ.
+          type: boolean
+          required: true
+          delegated_to: CIZ
+          delegation_type: UITVOERINGSBELEID
+          legal_basis: artikel 4:2, tweede lid, Algemene wet bestuursrecht
+          default:
+            actions:
+              - output: vereiste_gegevens_en_bescheiden_aanwezig
+                value: false
+      execution:
+        input:
+          - name: dagtekening_aanvraag_aanwezig
+            type: boolean
+            description: >-
+              De aanvraag is gedagtekend (lid 1 onder b). Presence-boolean: de
+              datum zelf is voor deze toets niet van belang.
+            source: {}
+          - name: gewenste_zorg_aanwezig
+            type: boolean
+            description: >-
+              De aanvraag bevat een aanduiding van de gevraagde beschikking
+              (lid 1 onder c): welke zorg wordt aangevraagd — Wlz-zorg, of
+              zorg in combinatie met een besluit op grond van artikel 21 Wzd
+              dan wel een rechterlijke machtiging.
+            source: {}
+        output:
+          - name: aanvraag_voldoet_aan_awb_vereisten
+            type: boolean
+        actions:
+          - output: aanvraag_voldoet_aan_awb_vereisten
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '4:2'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel4:2
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:2
+              explanation: >-
+                De vier vereisten van lid 1 (ondertekening, naam en adres,
+                dagtekening, aanduiding van de beschikking) plus de
+                informatieplicht van lid 2. Drie daarvan zijn open normen die
+                het CIZ-uitvoeringsbeleid invult.
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $aanvraag_juist_ondertekend
+                  value: true
+                - operation: EQUALS
+                  subject: $vereiste_persoonsgegevens_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $dagtekening_aanvraag_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $gewenste_zorg_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $vereiste_gegevens_en_bescheiden_aanwezig
+                  value: true
+
+  # ── 4:5 De aanvraag niet behandelen — de wortel ─────────────────────────────
+  # Lid 1 onder a noemt "enig wettelijk voorschrift voor het in behandeling
+  # nemen van de aanvraag" zonder te zeggen wélk voorschrift. Dat is een open
+  # norm die een ANDERE WET invult (delegation_type: WET) — hier de Wlz, die
+  # in artikel 3.2.3 het verzekerd-vereiste stelt. P3: zonder implementatie
+  # resolvet de norm naar null en gelden er geen aanvullende voorschriften.
+  #
+  # De uitkomst is positief geformuleerd: `kan_aanvraag_in_behandeling_worden_genomen`
+  # = true betekent dat er géén grond is om de aanvraag op grond van dit
+  # artikel buiten behandeling te laten. De hersteltermijn ("mits de aanvrager
+  # de gelegenheid heeft gehad ... aan te vullen") is procedureel en valt
+  # buiten dit corpus.
+  - number: '4:5'
+    url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel4:5
+    text: |-
+      Het bestuursorgaan kan besluiten de aanvraag niet te behandelen, indien: a. de aanvrager niet heeft voldaan aan enig wettelijk voorschrift voor het in behandeling nemen van de aanvraag, of b. de aanvraag geheel of gedeeltelijk is geweigerd op grond van artikel 2:15, of c. de verstrekte gegevens en bescheiden onvoldoende zijn voor de beoordeling van de aanvraag of voor de voorbereiding van de beschikking, mits de aanvrager de gelegenheid heeft gehad de aanvraag binnen een door het bestuursorgaan gestelde termijn aan te vullen.
+      Indien de aanvraag of een van de daarbij behorende gegevens of bescheiden in een vreemde taal is gesteld en een vertaling daarvan voor de beoordeling van de aanvraag of voor de voorbereiding van de beschikking noodzakelijk is, kan het bestuursorgaan besluiten de aanvraag niet te behandelen, mits de aanvrager de gelegenheid heeft gehad binnen een door het bestuursorgaan gestelde termijn de aanvraag met een vertaling aan te vullen.
+      Indien de aanvraag of een van de daarbij behorende gegevens of bescheiden omvangrijk of ingewikkeld is en een samenvatting voor de beoordeling van de aanvraag of voor de voorbereiding van de beschikking noodzakelijk is, kan het bestuursorgaan besluiten de aanvraag niet te behandelen, mits de aanvrager de gelegenheid heeft gehad binnen een door het bestuursorgaan gestelde termijn de aanvraag met een samenvatting aan te vullen.
+      Een besluit om de aanvraag niet te behandelen wordt aan de aanvrager bekendgemaakt binnen vier weken nadat de aanvraag is aangevuld of nadat de daarvoor gestelde termijn ongebruikt is verstreken.
+    machine_readable:
+      enables:
+        - regulatory_layer: WET
+          subject: >-
+            Aanvullende wettelijke voorschriften voor het in behandeling nemen
+            van een aanvraag (lid 1 onder a); voor een Wlz-aanvraag is dat het
+            verzekerd-vereiste van artikel 3.2.3 Wet langdurige zorg.
+      open_terms:
+        # P3: geen implementatie geladen -> null -> er zijn geen aanvullende
+        # wettelijke voorschriften, dus daaraan is voldaan. Bijzonder aan deze
+        # term: de invuller is zelf een WET (de Wlz), niet een lagere laag.
+        # De Awb is een algemene wet; de bijzondere wet vult haar in.
+        - id: voldaan_aan_overige_wettelijke_voorschriften
+          description: >-
+            Er is voldaan aan de overige wettelijke voorschriften voor het in
+            behandeling nemen van de aanvraag (lid 1 onder a). Welke
+            voorschriften dat zijn, bepaalt de bijzondere wet; voor een
+            Wlz-aanvraag stelt artikel 3.2.3 Wet langdurige zorg het
+            verzekerd-vereiste.
+          type: boolean
+          required: false
+          delegated_to: bijzondere wetgever
+          delegation_type: WET
+          legal_basis: artikel 4:5, eerste lid, onder a, Algemene wet bestuursrecht
+      execution:
+        input:
+          - name: aanvraag_voldoet_aan_awb_vereisten
+            type: boolean
+            source:
+              output: aanvraag_voldoet_aan_awb_vereisten
+        output:
+          - name: kan_aanvraag_in_behandeling_worden_genomen
+            type: boolean
+          - name: overige_voorschriften_voldaan
+            type: boolean
+            description: >-
+              Intern tussenresultaat: de open norm van lid 1 onder a met
+              null-terugval naar true (geen bijzondere wet geladen = geen
+              aanvullende voorschriften).
+        actions:
+          # "Enig wettelijk voorschrift": is er geen bijzondere wet die er een
+          # stelt (null), dan is er ook niets waaraan niet voldaan kan zijn.
+          - output: overige_voorschriften_voldaan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $voldaan_aan_overige_wettelijke_voorschriften
+                    value: null
+                  then: true
+              default: $voldaan_aan_overige_wettelijke_voorschriften
+          - output: kan_aanvraag_in_behandeling_worden_genomen
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '4:5'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel4:5
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:5
+              explanation: >-
+                Positief geformuleerd: de aanvraag kan in behandeling worden
+                genomen als er geen grond van lid 1 is om haar buiten
+                behandeling te laten — dus als aan de vereisten van artikel
+                4:2 is voldaan (onder a en c) en aan de overige wettelijke
+                voorschriften (onder a, open norm).
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $aanvraag_voldoet_aan_awb_vereisten
+                  value: true
+                - operation: EQUALS
+                  subject: $overige_voorschriften_voldaan
+                  value: true

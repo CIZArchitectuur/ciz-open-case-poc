@@ -1,0 +1,30 @@
+---
+# Stand-off notes (RFC-005) op de Wet langdurige zorg (aanvraag-eerst-corpus): alleen
+# artikel 3.2.3, de aanvraagbepaling.
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. 3.2.3: voldaan_aan_overige_wettelijke_voorschriften.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://wet_langdurige_zorg
+      selector:
+        type: TextQuoteSelector
+        exact: Het recht op zorg wordt op aanvraag van de verzekerde in een indicatiebesluit vastgesteld door het CIZ.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          De bijzondere wet meldt zich via implements aan bij Awb 4:5: het
+          verzekerd-vereiste van lid 1 is het wettelijk voorschrift dat de Awb
+          openlaat. De Wlz zegt niet hóe het CIZ zich van die verzekering
+          vergewist — dat is opnieuw een open norm, ingevuld door het
+          CIZ-uitvoeringsbeleid.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://wet_langdurige_zorg/voldaan_aan_overige_wettelijke_voorschriften
+        purpose: linking

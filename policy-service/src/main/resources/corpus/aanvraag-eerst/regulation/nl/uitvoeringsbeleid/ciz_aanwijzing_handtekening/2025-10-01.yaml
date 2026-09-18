@@ -1,0 +1,485 @@
+---
+# Aanvraag-eerst-corpus: de CIZ-Aanwijzing handtekening vult de open norm
+# "de aanvraag wordt ondertekend" van Awb 4:2 in.
+#
+# De Awb zegt alleen dát er ondertekend moet worden. Wie mag tekenen (de
+# cliënt zelf, een gemachtigde, een gevolmachtigde of wettelijk
+# vertegenwoordiger), wanneer die handtekening geldig is en wanneer er
+# helemaal geen handtekening nodig is — dat staat hier. De aanwijzing meldt
+# zich via `implements` aan bij de Awb; de Awb kent deze aanwijzing niet.
+#
+# Zes artikelen, één op één met de zes beslissingen uit het vault
+# Implementatiemodel_Aanvraag (i.Is de aanvraag juist ondertekend en de vijf
+# beslissingen daaronder). Artikelnummers zijn de kopjes van de aanwijzing.
+# Beslislogica overgenomen uit corpus/model/.../ciz_proces_aanvraag (art.
+# 1.1.2 t/m 1.1.2.4), tekst uit de aanwijzing zelf (oktober 2025).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_aanwijzing_handtekening
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-10-01'
+valid_from: '2025-10-01'
+url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+name: CIZ-Aanwijzing handtekening (oktober 2025)
+
+articles:
+  # ── ondertekening — de open norm van Awb 4:2 ────────────────────────────────
+  # Eigenaar van de term: dit artikel beantwoordt de vraag "is de aanvraag
+  # juist ondertekend?" en routeert intern naar de vijf andere artikelen.
+  # De uitzondering wint altijd: is er een uitzonderingsgrond, dan is een
+  # geldige handtekening niet vereist.
+  - number: 'ondertekening'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Wie mag de Wlz-aanvraag ondertekenen. Bij ontvangst beoordeelt het CIZ of de aanvraag is ondertekend en wie dat heeft gedaan: de cliënt zelf, een gemachtigde, een gevolmachtigde of wettelijk vertegenwoordiger, niemand, of iemand anders.
+      Tekent de cliënt zelf, dan moet hij kunnen overzien waarvoor hij tekent. Het is niet aan het CIZ om vast te stellen of een cliënt wilsonbekwaam is; wilsonbekwaamheid wordt vastgesteld door een deskundige arts of een notaris.
+      Is een van de uitzonderingen van toepassing, dan neemt het CIZ de aanvraag zonder (geldige) handtekening in behandeling.
+    machine_readable:
+      implements:
+        - law: algemene_wet_bestuursrecht
+          article: '4:2'
+          open_term: aanvraag_juist_ondertekend
+          gelet_op: >-
+            Gelet op artikel 4:2, eerste lid, van de Algemene wet
+            bestuursrecht (de aanvraag wordt ondertekend) en artikel 2:1 van
+            de Algemene wet bestuursrecht (bijstand en vertegenwoordiging).
+      execution:
+        # Manifest: de volledige bladcone van de ondertekeningsvraag — de
+        # zeventien gegevens die het CIZ hiervoor vastlegt, en niets meer.
+        parameters:
+          - name: wie_ondertekend
+            type: string
+            required: true
+          - name: blijvende_fysieke_onmogelijkheid_ondertekenen
+            type: boolean
+            required: false
+          - name: acute_zorgvraag_ondertekenen_niet_mogelijk
+            type: boolean
+            required: false
+          - name: aanvraag_vanuit_kloostergemeenschap
+            type: boolean
+            required: false
+          - name: bevestiging_aanvraag_wettelijke_vertegenwoordiging_aanwezig
+            type: boolean
+            required: false
+          - name: rechterlijke_machtiging_of_ibs_aanwezig
+            type: boolean
+            required: false
+          - name: indicatiesteller_zeker_client_kan_overzien
+            type: boolean
+            required: false
+          - name: eerste_bron_client_kan_overzien
+            type: boolean
+            required: false
+          - name: tweede_bron_client_kan_overzien
+            type: boolean
+            required: false
+          - name: machtigingsformulier_aanwezig
+            type: boolean
+            required: false
+          - name: wie_ondertekende_machtigingsformulier
+            type: string
+            required: false
+          - name: heeft_gemachtigde_wlz_aanvraag_ondertekend
+            type: boolean
+            required: false
+          - name: levenstestament_volmacht_of_beschikking_aanwezig
+            type: boolean
+            required: false
+          - name: indicatiesteller_zeker_machtiging_overzien
+            type: boolean
+            required: false
+          - name: eerste_bron_machtiging_overzien
+            type: boolean
+            required: false
+          - name: tweede_bron_machtiging_overzien
+            type: boolean
+            required: false
+          - name: heeft_gevolmachtigde_wlz_aanvraag_ondertekend
+            type: boolean
+            required: false
+        input:
+          - name: wie_ondertekend
+            type: string
+            description: >-
+              Wie heeft de aanvraag ondertekend. Toegestane waarden: client,
+              gemachtigde, gevolmachtigde_of_wettelijk_vertegenwoordiger,
+              niemand, anders. Andere waarden vallen op default (niet juist
+              ondertekend).
+            source: {}
+          - name: uitzondering_op_handtekening
+            type: boolean
+            source:
+              output: uitzondering_op_handtekening
+          - name: kan_client_ondertekening_overzien
+            type: boolean
+            source:
+              output: kan_client_ondertekening_overzien
+          - name: geldige_ondertekening_gemachtigde
+            type: boolean
+            source:
+              output: geldige_ondertekening_gemachtigde
+          - name: geldige_ondertekening_gevolmachtigde
+            type: boolean
+            source:
+              output: geldige_ondertekening_gevolmachtigde
+        output:
+          - name: aanvraag_juist_ondertekend
+            type: boolean
+        actions:
+          - output: aanvraag_juist_ondertekend
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '4:2'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel4:2
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:2
+              explanation: >-
+                De ondertekeningseis volgt uit Awb 4:2 lid 1; wie mag tekenen
+                en welke uitzonderingen gelden staat in deze aanwijzing.
+            value:
+              operation: IF
+              cases:
+                # Uitzondering op de handtekening -> altijd juist ondertekend.
+                - when:
+                    operation: EQUALS
+                    subject: $uitzondering_op_handtekening
+                    value: true
+                  then: true
+                # Cliënt zelf: geldig mits hij de ondertekening kan overzien.
+                - when:
+                    operation: EQUALS
+                    subject: $wie_ondertekend
+                    value: client
+                  then: $kan_client_ondertekening_overzien
+                - when:
+                    operation: EQUALS
+                    subject: $wie_ondertekend
+                    value: gemachtigde
+                  then: $geldige_ondertekening_gemachtigde
+                - when:
+                    operation: EQUALS
+                    subject: $wie_ondertekend
+                    value: gevolmachtigde_of_wettelijk_vertegenwoordiger
+                  then: $geldige_ondertekening_gevolmachtigde
+              # Niemand / anders zonder uitzondering -> niet juist ondertekend.
+              default: false
+
+  # ── uitzonderingen ──────────────────────────────────────────────────────────
+  # De drie formele uitzonderingen uit de aanwijzing, plus twee situaties uit
+  # de vault-beslistabel: een bevestigde aanvraag van wettelijke
+  # vertegenwoordiging bij de rechtbank en een RM/IBS op grond van de Wzd.
+  - number: 'uitzonderingen'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Soms is een cliënt niet in staat om de aanvraag te ondertekenen en is wettelijke vertegenwoordiging niet vereist. Dit is in de volgende gevallen: een blijvende (fysieke) onmogelijkheid om te ondertekenen, een acuut opgetreden zorgvraag waardoor ondertekenen niet mogelijk is (de hardheidsclausule), en een aanvraag vanuit een kloostergemeenschap (congregatie).
+      In afwachting van een uitspraak van de rechter kan het CIZ, na ontvangst van een schriftelijke bevestiging van de aanvraag bij de rechtbank, de aanvraagprocedure voortzetten. Dit vervangt de handtekening, er hoeft dan dus niemand de aanvraag te ondertekenen.
+      Is er een rechterlijke machtiging of een inbewaringstelling op grond van de Wet zorg en dwang, dan is een handtekening evenmin vereist.
+    machine_readable:
+      execution:
+        input:
+          - name: blijvende_fysieke_onmogelijkheid_ondertekenen
+            type: boolean
+            description: >-
+              Op het identiteitsbewijs staat een aantekening dat het zetten van
+              een handtekening niet mogelijk is, of een ter zake kundige heeft
+              dat verklaard.
+            source: {}
+          - name: acute_zorgvraag_ondertekenen_niet_mogelijk
+            type: boolean
+            description: >-
+              Acuut opgetreden zorgvraag waardoor de cliënt niet kan
+              ondertekenen (hardheidsclausule): geen wettelijk
+              vertegenwoordiger, buiten de reikwijdte van de Wzd, en
+              onevenredig nadeel bij uitstel.
+            source: {}
+          - name: aanvraag_vanuit_kloostergemeenschap
+            type: boolean
+            description: >-
+              De aanvraag wordt gedaan voor een lid van een congregatie zonder
+              aangestelde wettelijk vertegenwoordiger (casus besproken met
+              Analyse & Advies).
+            source: {}
+          - name: bevestiging_aanvraag_wettelijke_vertegenwoordiging_aanwezig
+            type: boolean
+            description: >-
+              Schriftelijke bevestiging dat wettelijke vertegenwoordiging bij
+              de rechtbank is aangevraagd (kopie aanvraag, reçu, bankafschrift
+              of screenshot).
+            source: {}
+          - name: rechterlijke_machtiging_of_ibs_aanwezig
+            type: boolean
+            description: >-
+              Er is een rechterlijke machtiging of inbewaringstelling op grond
+              van de Wet zorg en dwang.
+            source: {}
+        output:
+          - name: uitzondering_op_handtekening
+            type: boolean
+        actions:
+          - output: uitzondering_op_handtekening
+            legal_basis:
+              law: CIZ-Aanwijzing handtekening (oktober 2025)
+              url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+              explanation: >-
+                De drie formele uitzonderingen uit hoofdstuk 2 van de
+                aanwijzing, aangevuld met de bevestigde aanvraag van
+                wettelijke vertegenwoordiging en de RM/IBS (Wzd).
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $blijvende_fysieke_onmogelijkheid_ondertekenen
+                  value: true
+                - operation: EQUALS
+                  subject: $acute_zorgvraag_ondertekenen_niet_mogelijk
+                  value: true
+                - operation: EQUALS
+                  subject: $aanvraag_vanuit_kloostergemeenschap
+                  value: true
+                - operation: EQUALS
+                  subject: $bevestiging_aanvraag_wettelijke_vertegenwoordiging_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $rechterlijke_machtiging_of_ibs_aanwezig
+                  value: true
+
+  # ── begripsvermogen_aanvraag ────────────────────────────────────────────────
+  # Tekent de cliënt zelf, dan moet hij overzien waarvoor hij tekent. Het CIZ
+  # stelt geen wilsonbekwaamheid vast; het toetst begripsvermogen.
+  - number: 'begripsvermogen_aanvraag'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Hoewel we niet mogen vaststellen of een cliënt wilsonbekwaam (ter zake) is, kunnen we wel vermoeden dat de cliënt niet kan overzien waarvoor hij de aanvraag tekent en dus niet uit vrije wil om een indicatiebesluit vraagt.
+      Als dat zo is, spreken we onze twijfels hierover uit aan de personen die betrokken zijn bij de cliënt. Dit zijn bij voorkeur de familie van de cliënt en de zorgaanbieder. Mocht zowel de zorgaanbieder als de familie aangeven dat de cliënt begrijpt waarvoor hij heeft getekend, dan leg je in de cliëntnotitie uit waarom je toch akkoord gaat met de ondertekening.
+      Als de zorgaanbieder en/of familie aangeven dat de cliënt niet begrijpt waarvoor hij heeft getekend, dan mag de handtekening niet worden geaccepteerd.
+    machine_readable:
+      execution:
+        input:
+          - name: indicatiesteller_zeker_client_kan_overzien
+            type: boolean
+            description: >-
+              De indicatiesteller weet zeker dat de cliënt kan overzien wat de
+              ondertekening van de Wlz-aanvraag betekent; er is geen twijfel.
+            source: {}
+          - name: eerste_bron_client_kan_overzien
+            type: boolean
+            description: >-
+              Eerste onafhankelijke bron (bij voorkeur familie) bevestigt dat
+              de cliënt de ondertekening kan overzien.
+            source: {}
+          - name: tweede_bron_client_kan_overzien
+            type: boolean
+            description: >-
+              Tweede onafhankelijke bron (bij voorkeur de zorgaanbieder)
+              bevestigt dat de cliënt de ondertekening kan overzien.
+            source: {}
+        output:
+          - name: kan_client_ondertekening_overzien
+            type: boolean
+        actions:
+          - output: kan_client_ondertekening_overzien
+            legal_basis:
+              law: CIZ-Aanwijzing handtekening (oktober 2025)
+              url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+              explanation: >-
+                Zekerheid van de indicatiesteller volstaat; bij twijfel
+                bevestigen twee bronnen (familie en zorgaanbieder) het
+                begripsvermogen.
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $indicatiesteller_zeker_client_kan_overzien
+                  value: true
+                - operation: AND
+                  conditions:
+                    - operation: EQUALS
+                      subject: $eerste_bron_client_kan_overzien
+                      value: true
+                    - operation: EQUALS
+                      subject: $tweede_bron_client_kan_overzien
+                      value: true
+
+  # ── machtiging ──────────────────────────────────────────────────────────────
+  # Awb 2:1: iedereen mag zich laten vertegenwoordigen. Het CIZ vraagt dan om
+  # een schriftelijke machtiging; wie díe ondertekende bepaalt de extra toets.
+  - number: 'machtiging'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      In artikel 2:1 van de Awb staat dat iedereen zijn belangen mag laten behartigen bij het doen van een aanvraag of zich door een gemachtigde mag laten vertegenwoordigen. Iemand anders mag dus namens de cliënt de aanvraag ondertekenen, als de cliënt hiervoor toestemming geeft.
+      In dat geval vraagt het CIZ om een schriftelijke machtiging, waaruit blijkt dat de cliënt toestemming geeft om namens hem of haar de aanvraag in te dienen. Zowel de getekende aanvraag (ondertekend door de gemachtigde), als een schriftelijke machtiging (ondertekend door de cliënt of zijn wettelijk vertegenwoordiger) moeten worden toegestuurd aan het CIZ en zijn onderdeel van het dossier.
+    machine_readable:
+      execution:
+        input:
+          - name: machtigingsformulier_aanwezig
+            type: boolean
+            description: Het schriftelijke machtigingsformulier zit in het dossier.
+            source: {}
+          - name: wie_ondertekende_machtigingsformulier
+            type: string
+            description: >-
+              Wie heeft het machtigingsformulier ondertekend. Toegestane
+              waarden: client, gevolmachtigde_of_wettelijk_vertegenwoordiger.
+              Andere waarden vallen op default (geen geldige ondertekening).
+            source: {}
+          - name: kan_client_ondertekening_machtiging_overzien
+            type: boolean
+            source:
+              output: kan_client_ondertekening_machtiging_overzien
+          - name: levenstestament_volmacht_of_beschikking_aanwezig
+            type: boolean
+            description: >-
+              Het levenstestament, de notariële volmacht of de beschikking van
+              mentor- of curatorschap is aanwezig (gedeeld bewijsstuk met het
+              artikel vertegenwoordiging — zelfde vault-input).
+            source: {}
+          - name: heeft_gemachtigde_wlz_aanvraag_ondertekend
+            type: boolean
+            description: De gemachtigde heeft de Wlz-aanvraag zelf ondertekend.
+            source: {}
+        output:
+          - name: geldige_ondertekening_gemachtigde
+            type: boolean
+        actions:
+          - output: geldige_ondertekening_gemachtigde
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '2:1'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel2:1
+              juriconnect: jci1.3:c:BWBR0005537&artikel=2:1
+              explanation: >-
+                Vertegenwoordiging bij het doen van een aanvraag (Awb 2:1);
+                de aanwijzing eist een schriftelijke machtiging waaruit de
+                instemming van de cliënt blijkt. Tekent niet de cliënt maar
+                diens vertegenwoordiger het formulier, dan bewijst het
+                levenstestament, de volmacht of de beschikking die bevoegdheid.
+            value:
+              operation: AND
+              conditions:
+                # Zonder machtigingsformulier geen geldige ondertekening.
+                - operation: EQUALS
+                  subject: $machtigingsformulier_aanwezig
+                  value: true
+                # De gemachtigde moet de Wlz-aanvraag zelf tekenen.
+                - operation: EQUALS
+                  subject: $heeft_gemachtigde_wlz_aanvraag_ondertekend
+                  value: true
+                # Wie het formulier ondertekende bepaalt de aanvullende toets.
+                - operation: IF
+                  cases:
+                    - when:
+                        operation: EQUALS
+                        subject: $wie_ondertekende_machtigingsformulier
+                        value: client
+                      then: $kan_client_ondertekening_machtiging_overzien
+                    - when:
+                        operation: EQUALS
+                        subject: $wie_ondertekende_machtigingsformulier
+                        value: gevolmachtigde_of_wettelijk_vertegenwoordiger
+                      then: $levenstestament_volmacht_of_beschikking_aanwezig
+                  default: false
+
+  # ── begripsvermogen_machtiging ──────────────────────────────────────────────
+  # Dezelfde toets als begripsvermogen_aanvraag, maar voor het
+  # machtigingsformulier — eigen inputset (het vault kent twee beslissingen).
+  - number: 'begripsvermogen_machtiging'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Dezelfde vraag geldt voor het machtigingsformulier: kan de cliënt overzien waarvoor hij tekent wanneer hij een ander machtigt om de Wlz-aanvraag namens hem in te dienen?
+      Weet de indicatiesteller dat zeker, dan volstaat dat. Bij twijfel bevestigen twee onafhankelijke bronnen dat de cliënt de ondertekening van het machtigingsformulier kan overzien.
+    machine_readable:
+      execution:
+        input:
+          - name: indicatiesteller_zeker_machtiging_overzien
+            type: boolean
+            description: >-
+              De indicatiesteller weet zeker dat de cliënt de ondertekening van
+              het machtigingsformulier kan overzien.
+            source: {}
+          - name: eerste_bron_machtiging_overzien
+            type: boolean
+            description: >-
+              Eerste onafhankelijke bron bevestigt het begripsvermogen bij de
+              ondertekening van het machtigingsformulier.
+            source: {}
+          - name: tweede_bron_machtiging_overzien
+            type: boolean
+            description: >-
+              Tweede onafhankelijke bron bevestigt het begripsvermogen bij de
+              ondertekening van het machtigingsformulier.
+            source: {}
+        output:
+          - name: kan_client_ondertekening_machtiging_overzien
+            type: boolean
+        actions:
+          - output: kan_client_ondertekening_machtiging_overzien
+            legal_basis:
+              law: CIZ-Aanwijzing handtekening (oktober 2025)
+              url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+              explanation: >-
+                Begripsvermogen-toets uit de aanwijzing, toegepast op de
+                ondertekening van het machtigingsformulier.
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $indicatiesteller_zeker_machtiging_overzien
+                  value: true
+                - operation: AND
+                  conditions:
+                    - operation: EQUALS
+                      subject: $eerste_bron_machtiging_overzien
+                      value: true
+                    - operation: EQUALS
+                      subject: $tweede_bron_machtiging_overzien
+                      value: true
+
+  # ── vertegenwoordiging ──────────────────────────────────────────────────────
+  # Een wettelijk vertegenwoordiger ontleent zijn bevoegdheid aan een
+  # rechterlijke beschikking, een gevolmachtigde aan een volmacht of
+  # levenstestament. Beide vragen om het bewijsstuk.
+  - number: 'vertegenwoordiging'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Een wettelijk vertegenwoordiger is een mentor of curator die is aangewezen door de rechtbank om iemand te beschermen die niet goed kan beslissen over zijn verzorging, verpleging, behandeling en begeleiding.
+      Een cliënt kan zijn wilsuiting ook vastleggen in een levenstestament of een volmacht. Op die manier kan curatele, mentorschap of bewindvoering voorkomen worden. Een algemene volmacht is voldoende voor het doen van een Wlz-aanvraag. Volmachten zijn vormvrij; opstellen kan bij de notaris, maar dat hoeft niet.
+      De ondertekening is geldig als de gevolmachtigde of wettelijk vertegenwoordiger de Wlz-aanvraag heeft ondertekend én het bewijsstuk aanwezig is.
+    machine_readable:
+      execution:
+        input:
+          - name: heeft_gevolmachtigde_wlz_aanvraag_ondertekend
+            type: boolean
+            description: >-
+              De gevolmachtigde of wettelijk vertegenwoordiger heeft de
+              Wlz-aanvraag ondertekend.
+            source: {}
+          - name: levenstestament_volmacht_of_beschikking_aanwezig
+            type: boolean
+            description: >-
+              Het levenstestament, de notariële volmacht of de beschikking van
+              mentor- of curatorschap is aanwezig (gedeeld bewijsstuk met het
+              artikel machtiging — zelfde vault-input).
+            source: {}
+        output:
+          - name: geldige_ondertekening_gevolmachtigde
+            type: boolean
+        actions:
+          - output: geldige_ondertekening_gevolmachtigde
+            legal_basis:
+              law: CIZ-Aanwijzing handtekening (oktober 2025)
+              url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+              explanation: >-
+                Vertegenwoordiging vereist een bewijsstuk: de beschikking van
+                de rechter (wettelijk vertegenwoordiger) dan wel de notariële
+                volmacht of het levenstestament (gevolmachtigde).
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $heeft_gevolmachtigde_wlz_aanvraag_ondertekend
+                  value: true
+                - operation: EQUALS
+                  subject: $levenstestament_volmacht_of_beschikking_aanwezig
+                  value: true

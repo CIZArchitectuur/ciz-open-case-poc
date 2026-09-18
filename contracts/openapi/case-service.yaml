@@ -1,0 +1,392 @@
+openapi: 3.0.3
+info:
+  title: CIZ Open Case API
+  version: 0.7.0
+  description: Contract-first API for fictional Wlz cases, S3-backed documents, and Operaton workflow tasks.
+paths:
+  /cases:
+    post:
+      operationId: createCase
+      summary: Create a fictional Wlz application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCaseRequest'
+      responses:
+        '201':
+          description: Case created
+          headers:
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Case' }
+        '400':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /cases/{caseId}:
+    get:
+      operationId: getCase
+      summary: Retrieve a fictional Wlz application
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Case found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Case' }
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /cases/{caseId}/documents:
+    post:
+      operationId: addCaseDocument
+      summary: Add a document to an existing case
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+        - name: X-Document-File-Name
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 255, pattern: '.*\S.*' }
+        - name: X-Document-Content-Type
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\s/]+/[^\s/]+$' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: Document metadata registered
+          headers:
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaseDocument' }
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '413': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+    get:
+      operationId: listCaseDocuments
+      summary: List documents belonging to a case
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: Case documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CaseDocument' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /cases/{caseId}/documents/{documentId}/content:
+    get:
+      operationId: downloadCaseDocument
+      summary: Download a document belonging to a case
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Document content
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /cases/{caseId}/tasks:
+    get:
+      operationId: listCaseTasks
+      summary: List the tasks belonging to a case
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: Case tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CaseTask' }
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /cases/{caseId}/policy-evaluations:
+    get:
+      operationId: listCasePolicyEvaluations
+      summary: List immutable policy evaluations for a case
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: Policy evaluation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PolicyEvaluation' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /cases/{caseId}/medical-assessments:
+    get:
+      operationId: listCaseMedicalAssessments
+      summary: List immutable medical assessment evaluations for a case
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: Medical assessment history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MedicalAssessment' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /tasks:
+    get:
+      operationId: listTasks
+      summary: List workflow tasks for role work queues
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, pattern: '^(OPEN|COMPLETED)$' }
+        - name: type
+          in: query
+          schema: { type: string, pattern: '^(APPLICATION_INTAKE|ADDITIONAL_INFORMATION|APPLICATION_REVIEW|DECISION_REGISTRATION)$' }
+      responses:
+        '200':
+          description: Workflow tasks matching the supplied filters
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CaseTask' }
+        '400':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /tasks/{taskId}/intake-form:
+    get:
+      operationId: getTaskIntakeForm
+      summary: Get the active corpus-driven form for an intake or additional-information task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Versioned intake form
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeForm' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /tasks/{taskId}/medical-assessment-form:
+    get:
+      operationId: getTaskMedicalAssessmentForm
+      summary: Get the active RegelRecht-driven form for an application review task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Versioned medical assessment form
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeForm' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /tasks/{taskId}/complete:
+    post:
+      operationId: completeTask
+      summary: Complete an open task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskCompletionRequest' }
+      responses:
+        '200':
+          description: Completed task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaseTask' }
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+components:
+  parameters:
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    CreateCaseRequest:
+      type: object
+      additionalProperties: false
+      required: [applicantId, clientName, lastName, initials, citizenServiceNumber, birthDate, street, houseNumber, postalCode, city, country, permanentCareNeed, permanentSupervision]
+      properties:
+        applicantId: { type: string, minLength: 1, maxLength: 100, pattern: '.*\S.*' }
+        clientName: { type: string, minLength: 1, maxLength: 200, pattern: '.*\S.*' }
+        lastName: { type: string, minLength: 1, maxLength: 100, pattern: '.*\S.*' }
+        initials: { type: string, minLength: 1, maxLength: 20, pattern: '.*\S.*' }
+        citizenServiceNumber: { type: string, pattern: '^\d{9}$' }
+        birthDate:
+          type: string
+          format: date
+          x-field-extra-annotation: '@jakarta.validation.constraints.PastOrPresent'
+        street: { type: string, minLength: 1, maxLength: 120, pattern: '.*\S.*' }
+        houseNumber: { type: string, minLength: 1, maxLength: 20, pattern: '.*\S.*' }
+        postalCode: { type: string, minLength: 1, maxLength: 12, pattern: '.*\S.*' }
+        city: { type: string, minLength: 1, maxLength: 120, pattern: '.*\S.*' }
+        country: { type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*' }
+        permanentCareNeed: { type: boolean }
+        permanentSupervision: { type: boolean }
+    Case:
+      allOf:
+        - $ref: '#/components/schemas/CreateCaseRequest'
+        - type: object
+          required: [caseId, createdAt]
+          properties:
+            caseId: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+    CaseDocument:
+      type: object
+      additionalProperties: false
+      required: [documentId, caseId, fileName, contentType, size, sha256, createdAt]
+      properties:
+        documentId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string }
+        size: { type: integer, format: int64, minimum: 1 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        createdAt: { type: string, format: date-time }
+    CaseTask:
+      type: object
+      additionalProperties: false
+      required: [taskId, caseId, type, status, createdAt]
+      properties:
+        taskId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [APPLICATION_INTAKE, ADDITIONAL_INFORMATION, APPLICATION_REVIEW, DECISION_REGISTRATION]
+        status:
+          type: string
+          enum: [OPEN, COMPLETED]
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+    TaskCompletionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        facts:
+          type: object
+          additionalProperties: true
+        effectiveDate: { type: string, format: date, nullable: true }
+    IntakeForm:
+      type: object
+      additionalProperties: false
+      required: [formId, policyVersion, fields]
+      properties:
+        formId: { type: string }
+        policyVersion: { type: string }
+        fields:
+          type: array
+          items: { $ref: '#/components/schemas/IntakeField' }
+    IntakeField:
+      type: object
+      additionalProperties: false
+      required: [factId, type, required, label]
+      properties:
+        factId: { type: string }
+        type: { type: string, enum: [boolean, string, number, date] }
+        required: { type: boolean }
+        label: { type: string }
+        description: { type: string, nullable: true }
+    PolicyEvaluation:
+      type: object
+      additionalProperties: false
+      required: [evaluationId, caseId, taskId, facts, canBeTakenIntoConsideration, outputs, resolvedInputs, policyVersion, engineVersion, schemaVersion, regulationHash, effectiveDate, evaluatedAt]
+      properties:
+        evaluationId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        facts: { type: object, additionalProperties: true }
+        canBeTakenIntoConsideration: { type: boolean }
+        outputs: { type: object, additionalProperties: true }
+        resolvedInputs: { type: object, additionalProperties: true }
+        policyVersion: { type: string }
+        engineVersion: { type: string }
+        schemaVersion: { type: string }
+        regulationHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        effectiveDate: { type: string, format: date }
+        evaluatedAt: { type: string, format: date-time }
+    MedicalAssessment:
+      type: object
+      additionalProperties: false
+      required: [assessmentId, caseId, taskId, facts, assessmentComplete, criteriaMet, medicalAdviceRequired, outputs, policyVersion, engineVersion, schemaVersion, regulationHash, effectiveDate, assessedAt]
+      properties:
+        assessmentId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        facts: { type: object, additionalProperties: true }
+        assessmentComplete: { type: boolean }
+        criteriaMet: { type: boolean }
+        medicalAdviceRequired: { type: boolean }
+        outputs: { type: object, additionalProperties: true }
+        resolvedInputs: { type: object, additionalProperties: true }
+        policyVersion: { type: string }
+        engineVersion: { type: string }
+        schemaVersion: { type: string }
+        regulationHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        effectiveDate: { type: string, format: date }
+        assessedAt: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }

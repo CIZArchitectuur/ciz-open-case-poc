@@ -1,0 +1,147 @@
+---
+# Stand-off notes (RFC-005) op de CIZ-Aanwijzing handtekening (aanvraag-eerst-corpus).
+# De volledige brontekst leeft als referentiedocument in corpus/referentie.
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. ondertekening: aanvraag_juist_ondertekend.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_handtekening
+      selector:
+        type: TextQuoteSelector
+        exact: 'Bij ontvangst beoordeelt het CIZ of de aanvraag is ondertekend en wie dat heeft gedaan: de cliënt zelf, een gemachtigde, een gevolmachtigde of wettelijk vertegenwoordiger, niemand, of iemand anders.'
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Dit artikel vult de open norm aanvraag_juist_ondertekend van Awb 4:2 in
+          en routeert intern naar de vijf andere artikelen van deze aanwijzing. De
+          uitzondering wint altijd: is er een uitzonderingsgrond, dan is een
+          geldige handtekening niet vereist.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_handtekening/aanvraag_juist_ondertekend
+        purpose: linking
+  # LINKING — art. uitzonderingen: uitzondering_op_handtekening.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_handtekening
+      selector:
+        type: TextQuoteSelector
+        exact: Soms is een cliënt niet in staat om de aanvraag te ondertekenen en is wettelijke vertegenwoordiging niet vereist.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Vijf gelijkwaardige gronden: de drie formele uitzonderingen uit de
+          aanwijzing plus de bevestigde aanvraag van wettelijke vertegenwoordiging
+          en de RM/IBS op grond van de Wzd. Eén grond volstaat.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_handtekening/uitzondering_op_handtekening
+        purpose: linking
+  # LINKING — art. begripsvermogen_aanvraag: kan_client_ondertekening_overzien.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_handtekening
+      selector:
+        type: TextQuoteSelector
+        exact: Hoewel we niet mogen vaststellen of een cliënt wilsonbekwaam (ter zake) is, kunnen we wel vermoeden dat de cliënt niet kan overzien waarvoor hij de aanvraag tekent en dus niet uit vrije wil om een indicatiebesluit vraagt.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Het CIZ toetst begripsvermogen, geen wilsonbekwaamheid: die stelt een
+          deskundige arts of notaris vast. Zekerheid van de indicatiesteller
+          volstaat; bij twijfel bevestigen twee onafhankelijke bronnen (familie en
+          zorgaanbieder).
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_handtekening/kan_client_ondertekening_overzien
+        purpose: linking
+  # LINKING — art. machtiging: geldige_ondertekening_gemachtigde.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_handtekening
+      selector:
+        type: TextQuoteSelector
+        exact: In dat geval vraagt het CIZ om een schriftelijke machtiging, waaruit blijkt dat de cliënt toestemming geeft om namens hem of haar de aanvraag in te dienen.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Twee harde eisen (formulier aanwezig, gemachtigde tekende de aanvraag
+          zelf) plus een geneste toets die afhangt van wie het
+          machtigingsformulier ondertekende: de cliënt (dan begripsvermogen) of
+          diens vertegenwoordiger (dan het bewijsstuk).
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_handtekening/geldige_ondertekening_gemachtigde
+        purpose: linking
+  # LINKING — art. begripsvermogen_machtiging: kan_client_ondertekening_machtiging_overzien.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_handtekening
+      selector:
+        type: TextQuoteSelector
+        exact: Weet de indicatiesteller dat zeker, dan volstaat dat. Bij twijfel bevestigen twee onafhankelijke bronnen dat de cliënt de ondertekening van het machtigingsformulier kan overzien.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Dezelfde begripsvermogen-toets als bij de aanvraag, maar met een eigen
+          inputset: het vault-model kent twee afzonderlijke beslissingen, één per
+          document.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_handtekening/kan_client_ondertekening_machtiging_overzien
+        purpose: linking
+  # LINKING — art. vertegenwoordiging: geldige_ondertekening_gevolmachtigde.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_aanwijzing_handtekening
+      selector:
+        type: TextQuoteSelector
+        exact: De ondertekening is geldig als de gevolmachtigde of wettelijk vertegenwoordiger de Wlz-aanvraag heeft ondertekend én het bewijsstuk aanwezig is.
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Vertegenwoordiging vraagt altijd om een bewijsstuk: een rechterlijke
+          beschikking (mentor- of curatorschap) dan wel een notariële volmacht of
+          levenstestament. Het bewijsstuk-blad is gedeeld met het artikel
+          machtiging.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_aanwijzing_handtekening/geldige_ondertekening_gevolmachtigde
+        purpose: linking

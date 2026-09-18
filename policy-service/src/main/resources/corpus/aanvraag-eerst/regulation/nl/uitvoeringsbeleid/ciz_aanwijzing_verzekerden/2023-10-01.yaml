@@ -1,0 +1,152 @@
+---
+# Aanvraag-eerst-corpus: de CIZ-Aanwijzing Wlz-verzekering en buitenland vult
+# de open norm "vergewist van de Wlz-verzekering" van Wlz 3.2.3 in.
+#
+# De Wlz zegt dat het recht op zorg wordt vastgesteld op aanvraag van *de
+# verzekerde*; artikel 3.1 van de Regeling langdurige zorg legt het CIZ de
+# vergewisplicht op. Hóe het CIZ zich vergewist — via de opgegeven
+# zorgverzekeraar en het polisnummer, of via een uitzonderingsgroep — staat
+# hier. De aanwijzing meldt zich via `implements` aan bij de Wlz.
+#
+# Beslislogica en de verzekeraarslijst zijn letterlijk overgenomen uit
+# corpus/model/.../wet_langdurige_zorg art. 2.1.1 (de DMN-migratie van de
+# vault-beslissing i.Is persoon verzekerd voor de Wlz).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_aanwijzing_verzekerden
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2023-10-01'
+valid_from: '2023-10-01'
+url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+name: CIZ-Aanwijzing Wlz-verzekering en buitenland (oktober 2023)
+
+articles:
+  # ── verzekeringsvereiste — de open norm van Wlz 3.2.3 ───────────────────────
+  # Twee wegen naar "vergewist": een bekende Nederlandse zorgverzekeraar met
+  # polisnummer, of een uitzonderingsgroep (gemoedsbezwaarden, verdrags-
+  # gerechtigden, gedetineerden, militairen — zie de aanwijzing).
+  - number: 'verzekeringsvereiste'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Om in aanmerking te komen voor zorg vanuit de Wet langdurige zorg moet de cliënt Wlz-verzekerd zijn. Het CIZ vergewist zich daarvan bij de aanvraag (artikel 3.1 van de Regeling langdurige zorg).
+      In de regel blijkt de verzekering uit de opgegeven zorgverzekeraar en het polisnummer: iedereen die in Nederland woont of werkt en premie betaalt, is van rechtswege verzekerd voor de Wlz.
+      Er zijn groepen die geen zorgverzekering hebben maar wél Wlz-verzekerd zijn, en groepen die dat juist niet zijn. Bij een uitzonderingsgroep beoordeelt het CIZ de verzekering aan de hand van deze aanwijzing in plaats van aan de hand van de polis.
+    machine_readable:
+      implements:
+        - law: wet_langdurige_zorg
+          article: '3.2.3'
+          open_term: vergewist_van_wlz_verzekering
+          gelet_op: >-
+            Gelet op artikel 3.2.3, eerste lid, van de Wet langdurige zorg en
+            artikel 3.1 van de Regeling langdurige zorg (het CIZ vergewist
+            zich ervan dat de aanvrager verzekerd is).
+      execution:
+        # Manifest: de drie gegevens die het CIZ voor de verzekeringstoets
+        # vastlegt. De rest van de aanvraaggegevens blijft bij de Awb.
+        parameters:
+          - name: naam_zorgverzekeraar
+            type: string
+            required: false
+          - name: polisnummer_aanwezig
+            type: boolean
+            required: false
+          - name: uitzondering_op_verzekering
+            type: boolean
+            required: false
+        input:
+          - name: naam_zorgverzekeraar
+            type: string
+            description: >-
+              Naam van de zorgverzekeraar, snake_case. Toegestane waarden
+              (concerns en labels): asr, achmea, de_christelijke_zorgverzekeraar,
+              fbto, zilveren_kruis_ziezo, de_friesland, interpolis,
+              zilveren_kruis, cz, just_cz, ohra, cz_direct,
+              nationale_nederlanden, dsw, dsw_zorgverzekeraar, stad_holland,
+              in_twente, eno, salland, eucare, aevitae, menzis, anderzorg,
+              hema, vinkvink, onvz, vvaa, vgz, iza, umc_zorgverzekering,
+              unive, vgz_bewuzt, izz, united_consumers, zekur, volmachten,
+              aon, zorg_en_zekerheid. Onbekende waarden tellen als geen
+              bekende verzekeraar.
+            source: {}
+          - name: polisnummer_aanwezig
+            type: boolean
+            description: >-
+              Bij de aanvraag is een polisnummer van de zorgverzekering
+              opgegeven.
+            source: {}
+          - name: uitzondering_op_verzekering
+            type: boolean
+            description: >-
+              De cliënt hoort bij een uitzonderingsgroep uit deze aanwijzing
+              (bijvoorbeeld gemoedsbezwaarden, verdragsgerechtigden,
+              gedetineerden of militairen): de verzekering wordt dan niet via
+              de polis vastgesteld.
+            source: {}
+        output:
+          - name: vergewist_van_wlz_verzekering
+            type: boolean
+        actions:
+          - output: vergewist_van_wlz_verzekering
+            legal_basis:
+              law: Regeling langdurige zorg
+              bwb_id: BWBR0036014
+              article: '3.1'
+              url: https://wetten.overheid.nl/BWBR0036014/2024-07-01#Artikel3.1
+              juriconnect: jci1.3:c:BWBR0036014&artikel=3.1
+              explanation: >-
+                De vergewisplicht van Rlz 3.1: het CIZ stelt vast dat de
+                aanvrager Wlz-verzekerd is. De verzekeraars-/polistoets en de
+                uitzonderingsgroepen zijn de CIZ-operationalisering daarvan.
+            value:
+              operation: OR
+              conditions:
+                # Uitzonderingsgroep: de polis zegt niets, de aanwijzing wel.
+                - operation: EQUALS
+                  subject: $uitzondering_op_verzekering
+                  value: true
+                # Reguliere weg: bekende NL-verzekeraar + polisnummer.
+                - operation: AND
+                  conditions:
+                    - operation: IN
+                      subject: $naam_zorgverzekeraar
+                      values:
+                        - asr
+                        - achmea
+                        - de_christelijke_zorgverzekeraar
+                        - fbto
+                        - zilveren_kruis_ziezo
+                        - de_friesland
+                        - interpolis
+                        - zilveren_kruis
+                        - cz
+                        - just_cz
+                        - ohra
+                        - cz_direct
+                        - nationale_nederlanden
+                        - dsw
+                        - dsw_zorgverzekeraar
+                        - stad_holland
+                        - in_twente
+                        - eno
+                        - salland
+                        - eucare
+                        - aevitae
+                        - menzis
+                        - anderzorg
+                        - hema
+                        - vinkvink
+                        - onvz
+                        - vvaa
+                        - vgz
+                        - iza
+                        - umc_zorgverzekering
+                        - unive
+                        - vgz_bewuzt
+                        - izz
+                        - united_consumers
+                        - zekur
+                        - volmachten
+                        - aon
+                        - zorg_en_zekerheid
+                    - operation: EQUALS
+                      subject: $polisnummer_aanwezig
+                      value: true

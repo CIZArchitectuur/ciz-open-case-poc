@@ -1,0 +1,89 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_wlz_completeness
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://github.com/CIZArchitectuur/ciz-open-case-poc
+name: CIZ Wlz volledigheidstoets (PoC)
+
+articles:
+  - number: '1'
+    text: |-
+      Een aanvraag is administratief en juridisch-inhoudelijk compleet wanneer
+      alle daarvoor benodigde, gevalideerde gegevens aanwezig zijn.
+    machine_readable:
+      execution:
+        parameters:
+          - name: administratieve_gegevens_aanwezig
+            type: boolean
+            required: true
+          - name: juist_ondertekend
+            type: boolean
+            required: true
+          - name: medische_informatie_aanwezig
+            type: boolean
+            required: true
+          - name: herkomst_medische_informatie_gevalideerd
+            type: boolean
+            required: true
+          - name: informatie_ter_zake_kundige_gevalideerd
+            type: boolean
+            required: true
+        input:
+          - name: administratieve_gegevens_aanwezig
+            type: boolean
+            source: {}
+          - name: juist_ondertekend
+            type: boolean
+            source: {}
+          - name: medische_informatie_aanwezig
+            type: boolean
+            source: {}
+          - name: herkomst_medische_informatie_gevalideerd
+            type: boolean
+            source: {}
+          - name: informatie_ter_zake_kundige_gevalideerd
+            type: boolean
+            source: {}
+        output:
+          - name: administratief_compleet
+            type: boolean
+          - name: juridisch_inhoudelijk_compleet
+            type: boolean
+          - name: kan_in_behandeling_worden_genomen
+            type: boolean
+        actions:
+          - output: administratief_compleet
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $administratieve_gegevens_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $juist_ondertekend
+                  value: true
+          - output: juridisch_inhoudelijk_compleet
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $medische_informatie_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $herkomst_medische_informatie_gevalideerd
+                  value: true
+                - operation: EQUALS
+                  subject: $informatie_ter_zake_kundige_gevalideerd
+                  value: true
+          - output: kan_in_behandeling_worden_genomen
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $administratief_compleet
+                  value: true
+                - operation: EQUALS
+                  subject: $juridisch_inhoudelijk_compleet
+                  value: true

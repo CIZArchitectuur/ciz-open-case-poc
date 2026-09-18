@@ -1,0 +1,28 @@
+---
+# Stand-off notes (RFC-005) op de CIZ-Aanwijzing Ter zake kundige (aanvraag-eerst-corpus).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. 1: diagnose_door_ter_zake_kundige.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://ciz_ter_zake_kundige
+      selector:
+        type: TextQuoteSelector
+        exact: De kwaliteit van het indicatiebesluit hangt mede af van de deskundigheid en bevoegdheid
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          De bevoegdheidstoets vult de P1-norm diagnose_door_ter_zake_kundige van
+          de notitie Benodigde informatie in — uitvoeringsbeleid dat
+          uitvoeringsbeleid invult. De categorie "anders" leidt naar een expliciet
+          medewerker-oordeel: het vault-model was daar niet-deterministisch.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://ciz_ter_zake_kundige/diagnose_door_ter_zake_kundige
+        purpose: linking

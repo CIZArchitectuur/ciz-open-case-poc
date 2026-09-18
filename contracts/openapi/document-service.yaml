@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: CIZ Document Service API
+  version: 0.1.0
+  description: Provider-neutral document storage API backed by the S3 protocol.
+paths:
+  /documents:
+    post:
+      operationId: uploadDocument
+      summary: Store a document for an existing case reference
+      parameters:
+        - name: caseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-Document-File-Name
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 255, pattern: '.*\S.*' }
+        - name: X-Document-Content-Type
+          in: header
+          required: true
+          schema: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: Document stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+    get:
+      operationId: listDocuments
+      summary: List document metadata for a case
+      parameters:
+        - name: caseId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+  /documents/{documentId}/content:
+    get:
+      operationId: downloadDocument
+      summary: Stream stored document content
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Document content
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Document:
+      type: object
+      additionalProperties: false
+      required: [documentId, caseId, fileName, contentType, size, sha256, createdAt]
+      properties:
+        documentId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string }
+        size: { type: integer, format: int64, minimum: 1 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        createdAt: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }

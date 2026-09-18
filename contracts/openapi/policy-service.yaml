@@ -1,0 +1,196 @@
+openapi: 3.0.3
+info:
+  title: CIZ policy evaluation API
+  version: 0.2.0
+  description: Contract for deterministic Wlz intake and medical assessment support executed by RegelRecht.
+paths:
+  /medical-assessment-form:
+    get:
+      operationId: getActiveMedicalAssessmentForm
+      summary: Get the active RegelRecht-driven medical assessment form
+      responses:
+        '200':
+          description: Versioned medical assessment form
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeForm' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /medical-assessments:
+    post:
+      operationId: evaluateMedicalAssessment
+      summary: Evaluate validated medical findings against the configured Wlz assessment policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntakeEvaluationRequest' }
+      responses:
+        '200':
+          description: Explainable medical assessment outcome
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MedicalAssessmentEvaluation' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /intake-form:
+    get:
+      operationId: getActiveIntakeForm
+      summary: Get the active CIZ corpus-driven intake form
+      responses:
+        '200':
+          description: Versioned form definition derived from the active policy corpus
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeForm' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /intake-evaluations:
+    post:
+      operationId: evaluateIntake
+      summary: Evaluate official CIZ aanvraag corpus facts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntakeEvaluationRequest' }
+      responses:
+        '200':
+          description: Explainable official corpus outcome
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeEvaluation' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /completeness-evaluations:
+    post:
+      operationId: evaluateCompleteness
+      summary: Evaluate whether a Wlz application can be taken into consideration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompletenessFacts' }
+      responses:
+        '200':
+          description: Explainable policy outcome
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompletenessEvaluation' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    IntakeForm:
+      type: object
+      additionalProperties: false
+      required: [formId, policyVersion, fields]
+      properties:
+        formId: { type: string }
+        policyVersion: { type: string }
+        fields:
+          type: array
+          items: { $ref: '#/components/schemas/IntakeField' }
+    IntakeField:
+      type: object
+      additionalProperties: false
+      required: [factId, type, required, label]
+      properties:
+        factId: { type: string }
+        type:
+          type: string
+          enum: [boolean, string, number, date]
+        required: { type: boolean }
+        label: { type: string }
+        description: { type: string, nullable: true }
+    IntakeEvaluationRequest:
+      type: object
+      additionalProperties: false
+      required: [facts]
+      properties:
+        facts:
+          type: object
+          additionalProperties: true
+        effectiveDate:
+          type: string
+          format: date
+          nullable: true
+    IntakeEvaluation:
+      type: object
+      additionalProperties: false
+      required: [canBeTakenIntoConsideration, outputs, policyVersion, engineVersion, schemaVersion, regulationHash]
+      properties:
+        canBeTakenIntoConsideration: { type: boolean }
+        outputs:
+          type: object
+          additionalProperties: true
+        resolvedInputs:
+          type: object
+          additionalProperties: true
+        policyVersion: { type: string }
+        engineVersion: { type: string }
+        schemaVersion: { type: string }
+        regulationHash: { type: string }
+    MedicalAssessmentEvaluation:
+      type: object
+      additionalProperties: false
+      required: [assessmentComplete, criteriaMet, medicalAdviceRequired, outputs, policyVersion, engineVersion, schemaVersion, regulationHash]
+      properties:
+        assessmentComplete: { type: boolean }
+        criteriaMet: { type: boolean }
+        medicalAdviceRequired: { type: boolean }
+        outputs:
+          type: object
+          additionalProperties: true
+        resolvedInputs:
+          type: object
+          additionalProperties: true
+        policyVersion: { type: string }
+        engineVersion: { type: string }
+        schemaVersion: { type: string }
+        regulationHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+    CompletenessFacts:
+      type: object
+      additionalProperties: false
+      required: [administrativeDataPresent, correctlySigned, medicalInformationPresent, medicalSourceValidated, expertInformationValidated]
+      properties:
+        administrativeDataPresent: { type: boolean }
+        correctlySigned: { type: boolean }
+        medicalInformationPresent: { type: boolean }
+        medicalSourceValidated: { type: boolean }
+        expertInformationValidated: { type: boolean }
+    CompletenessEvaluation:
+      type: object
+      additionalProperties: false
+      required: [canBeTakenIntoConsideration, administrativelyComplete, legallyComplete, checks, engineVersion, schemaVersion, regulationHash]
+      properties:
+        canBeTakenIntoConsideration: { type: boolean }
+        administrativelyComplete: { type: boolean }
+        legallyComplete: { type: boolean }
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/PolicyCheck' }
+        engineVersion: { type: string }
+        schemaVersion: { type: string }
+        regulationHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+    PolicyCheck:
+      type: object
+      additionalProperties: false
+      required: [code, label, passed]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        passed: { type: boolean }
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }

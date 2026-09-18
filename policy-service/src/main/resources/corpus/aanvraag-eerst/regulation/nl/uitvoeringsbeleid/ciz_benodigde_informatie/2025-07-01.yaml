@@ -1,0 +1,290 @@
+---
+# Aanvraag-eerst-corpus: de CIZ-notitie "Benodigde informatie bij een
+# Wlz-aanvraag" vult de open norm van Awb 4:2 lid 2 in — "de gegevens en
+# bescheiden die voor de beslissing op de aanvraag nodig zijn".
+#
+# De Awb laat volledig open wélke gegevens dat zijn; dat hangt van de
+# beschikking af. Voor een Wlz-indicatiebesluit zijn dat medisch-diagnostische
+# gegevens: een valide diagnose, gesteld door een ter zake kundige, met een
+# datum en een herleidbare herkomst.
+#
+# Deze notitie laat op haar beurt één begrip open: wie "ter zake kundig" is.
+# Dat vult de CIZ-Aanwijzing Ter zake kundige in — een open norm van
+# uitvoeringsbeleid naar uitvoeringsbeleid, en de enige P1-norm in dit corpus:
+# zonder die aanwijzing kán de vraag niet worden beantwoord.
+#
+# Beslislogica overgenomen uit corpus/model/.../ciz_proces_aanvraag (art. 1.2,
+# 1.2.1.1 en 1.2.2), tekst uit de notitie zelf (juli 2025) en uit de notitie
+# "Definitie complete aanvraag" (inhoudelijk volledig).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_benodigde_informatie
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-07-01'
+valid_from: '2025-07-01'
+url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+name: CIZ — Benodigde informatie bij een Wlz-aanvraag (juli 2025)
+
+articles:
+  # ── diagnose — de open norm van Awb 4:2 lid 2 ───────────────────────────────
+  # Eigenaar van de term: dit artikel beantwoordt "zijn de benodigde gegevens
+  # en bescheiden verschaft?" en declareert zelf de open norm over de ter zake
+  # kundige (P1, hard vereist — geen default).
+  - number: 'diagnose'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Voor de beoordeling van een Wlz-aanvraag heeft het CIZ medisch-diagnostische informatie nodig. Uit die informatie moet blijken welke diagnose is gesteld, door wie en wanneer, en van welke instantie de informatie afkomstig is.
+      Zonder duidelijke diagnose kan geen grondslag worden bepaald en dus geen indicatiebesluit worden genomen. Zie de aanwijzing "Ter zake kundige" voor wie bevoegd is om een diagnose te stellen.
+      De aanvraag is inhoudelijk volledig als de medische informatie aanwezig is, gedagtekend is, een valide diagnose met diagnosedatum bevat, is gesteld door een ter zake kundige en een herleidbare herkomst heeft.
+    machine_readable:
+      implements:
+        - law: algemene_wet_bestuursrecht
+          article: '4:2'
+          open_term: vereiste_gegevens_en_bescheiden_aanwezig
+          gelet_op: >-
+            Gelet op artikel 4:2, tweede lid, van de Algemene wet
+            bestuursrecht (de aanvrager verschaft de gegevens en bescheiden
+            die voor de beslissing op de aanvraag nodig zijn) juncto artikel
+            3.2.3, vierde lid, van de Wet langdurige zorg.
+      open_terms:
+        # P1: hard vereist, geen default. Zonder de Aanwijzing Ter zake
+        # kundige kan het CIZ niet vaststellen of de diagnose door een
+        # bevoegde professional is gesteld — dan hoort deze vraag niet
+        # beantwoordbaar te zijn, en faalt de uitvoering luid.
+        - id: diagnose_door_ter_zake_kundige
+          description: >-
+            De diagnose is gesteld door een ter zake kundige: een professional
+            die volgens het CIZ bevoegd is een diagnose of prognose te stellen
+            (Wet BIG en de CIZ-Aanwijzing Ter zake kundige).
+          type: boolean
+          required: true
+          delegated_to: CIZ
+          delegation_type: UITVOERINGSBELEID
+          legal_basis: >-
+            Benodigde informatie bij een Wlz-aanvraag (juli 2025), onderdeel
+            diagnose, jo. de Wet op de beroepen in de individuele
+            gezondheidszorg
+      execution:
+        # Manifest: de eigen bladeren plus de bladcone van de ter-zake-kundige-
+        # toets, die via de open norm doorreist naar de aanwijzing.
+        parameters:
+          - name: medische_informatie_aanwezig
+            type: boolean
+            required: false
+          - name: dagtekening_informatie_aanwezig
+            type: boolean
+            required: false
+          - name: diagnosedatum_aanwezig
+            type: boolean
+            required: false
+          - name: diagnose_handmatig_aanwezig
+            type: boolean
+            required: false
+          - name: diagnose_nlp_aanwezig
+            type: boolean
+            required: false
+          - name: diagnose_snomed_gevalideerd
+            type: boolean
+            required: false
+          - name: informatie_ondertekend_door_ter_zake_kundige
+            type: boolean
+            required: false
+          - name: stempel_of_logo_aanwezig
+            type: boolean
+            required: false
+          - name: herleidbaar_document_aanwezig
+            type: boolean
+            required: false
+          # doorgifte aan ciz_ter_zake_kundige
+          - name: bevoegdheid_ter_zake_kundige
+            type: string
+            required: false
+          - name: naam_ter_zake_kundige_aanwezig
+            type: boolean
+            required: false
+          - name: big_nummer_aanwezig
+            type: boolean
+            required: false
+          - name: agb_code_aanwezig
+            type: boolean
+            required: false
+          - name: medewerker_acht_ter_zake_kundige_bevoegd
+            type: boolean
+            required: false
+        input:
+          - name: valide_diagnose
+            type: boolean
+            source:
+              output: valide_diagnose
+          - name: valide_herkomst_medische_informatie
+            type: boolean
+            source:
+              output: valide_herkomst_medische_informatie
+          - name: medische_informatie_aanwezig
+            type: boolean
+            description: Er is medisch-diagnostische informatie bijgevoegd.
+            source: {}
+          - name: dagtekening_informatie_aanwezig
+            type: boolean
+            description: De aangeleverde medische informatie is gedagtekend.
+            source: {}
+          - name: diagnosedatum_aanwezig
+            type: boolean
+            description: Bij de diagnose is een diagnosedatum vermeld.
+            source: {}
+        output:
+          - name: vereiste_gegevens_en_bescheiden_aanwezig
+            type: boolean
+          - name: diagnose_door_ter_zake_kundige
+            type: boolean
+            description: Her-emissie van de open term (zichtbaar in trace/BDD).
+        actions:
+          - output: diagnose_door_ter_zake_kundige
+            value: $diagnose_door_ter_zake_kundige
+          - output: vereiste_gegevens_en_bescheiden_aanwezig
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '4:2'
+              paragraph: '2'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-08-01#Artikel4:2
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:2
+              explanation: >-
+                Awb 4:2 lid 2 vraagt om de gegevens en bescheiden die voor de
+                beslissing nodig zijn; voor een Wlz-indicatiebesluit is dat
+                medisch-diagnostische informatie met een valide diagnose van
+                een ter zake kundige, gedagtekend en herleidbaar.
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $medische_informatie_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $dagtekening_informatie_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $valide_diagnose
+                  value: true
+                - operation: EQUALS
+                  subject: $diagnosedatum_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $diagnose_door_ter_zake_kundige
+                  value: true
+                - operation: EQUALS
+                  subject: $valide_herkomst_medische_informatie
+                  value: true
+
+  # ── valide_diagnose ─────────────────────────────────────────────────────────
+  # Een diagnose is handmatig overgenomen of door documentclassificatie (NLP)
+  # geëxtraheerd; in beide gevallen moet zij voorkomen in de SNOMED CT-lijst.
+  - number: 'valide_diagnose'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Een diagnose kan handmatig door de indicatiesteller zijn overgenomen uit de medische stukken, of daaruit zijn geëxtraheerd met documentclassificatie (NLP).
+      De diagnose is valide als er ten minste één diagnose aanwezig is — handmatig of via NLP — én die diagnose voorkomt in de SNOMED CT-lijst van klinische bevindingen.
+    machine_readable:
+      execution:
+        input:
+          - name: diagnose_handmatig_aanwezig
+            type: boolean
+            description: >-
+              De indicatiesteller heeft ten minste één diagnose handmatig
+              vastgelegd.
+            source: {}
+          - name: diagnose_nlp_aanwezig
+            type: boolean
+            description: >-
+              Documentclassificatie (NLP) heeft ten minste één diagnose uit de
+              medische stukken geëxtraheerd.
+            source: {}
+          - name: diagnose_snomed_gevalideerd
+            type: boolean
+            description: >-
+              De aangeleverde diagnose komt voor in de SNOMED CT-lijst van
+              klinische bevindingen (extern validatie-oordeel).
+            source: {}
+        output:
+          - name: valide_diagnose
+            type: boolean
+        actions:
+          - output: valide_diagnose
+            legal_basis:
+              law: CIZ — Benodigde informatie bij een Wlz-aanvraag (juli 2025)
+              url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+              explanation: >-
+                Zonder duidelijke diagnose kan geen grondslag worden bepaald;
+                de diagnose wordt gevalideerd tegen de SNOMED CT-lijst van
+                klinische bevindingen.
+            value:
+              operation: AND
+              conditions:
+                - operation: OR
+                  conditions:
+                    - operation: EQUALS
+                      subject: $diagnose_handmatig_aanwezig
+                      value: true
+                    - operation: EQUALS
+                      subject: $diagnose_nlp_aanwezig
+                      value: true
+                - operation: EQUALS
+                  subject: $diagnose_snomed_gevalideerd
+                  value: true
+
+  # ── herkomst ────────────────────────────────────────────────────────────────
+  # Drie gelijkwaardige kenmerken; één volstaat. De ondertekening door een ter
+  # zake kundige is hier bewust een blad (zie docs/aanvraag-eerst-corpus.md,
+  # "Bewuste keuzes"): het corpus modelleert de bevoegdheidstoets één keer, bij
+  # de diagnose.
+  - number: 'herkomst'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      De herkomst van de medische informatie moet herleidbaar zijn tot de behandelende instantie. Dat blijkt uit ten minste één van drie kenmerken: de informatie is ondertekend door een ter zake kundige, zij draagt een stempel of logo van de behandelende instantie, of het gaat om een herleidbaar document van die instantie.
+    machine_readable:
+      execution:
+        input:
+          - name: informatie_ondertekend_door_ter_zake_kundige
+            type: boolean
+            description: >-
+              De medische informatie is ondertekend door een ter zake kundige
+              (vastgesteld bij de intake; de bevoegdheidstoets zelf staat in de
+              CIZ-Aanwijzing Ter zake kundige en wordt bij de diagnose
+              uitgevoerd).
+            source: {}
+          - name: stempel_of_logo_aanwezig
+            type: boolean
+            description: >-
+              De informatie draagt een stempel of logo van de behandelende
+              instantie.
+            source: {}
+          - name: herleidbaar_document_aanwezig
+            type: boolean
+            description: >-
+              Het gaat om een herleidbaar document van de behandelende
+              instantie (bijvoorbeeld briefpapier met vermelding van de
+              instantie).
+            source: {}
+        output:
+          - name: valide_herkomst_medische_informatie
+            type: boolean
+        actions:
+          - output: valide_herkomst_medische_informatie
+            legal_basis:
+              law: CIZ — Benodigde informatie bij een Wlz-aanvraag (juli 2025)
+              url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+              explanation: >-
+                De informatie moet herleidbaar zijn tot de behandelende
+                instantie: handtekening, stempel of logo, dan wel een
+                herleidbaar document.
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $informatie_ondertekend_door_ter_zake_kundige
+                  value: true
+                - operation: EQUALS
+                  subject: $stempel_of_logo_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $herleidbaar_document_aanwezig
+                  value: true

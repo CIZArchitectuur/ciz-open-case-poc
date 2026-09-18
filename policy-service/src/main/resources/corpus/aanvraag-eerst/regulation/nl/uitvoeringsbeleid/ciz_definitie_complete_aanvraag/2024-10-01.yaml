@@ -1,0 +1,166 @@
+---
+# Aanvraag-eerst-corpus: de CIZ-notitie "Definitie complete aanvraag" vult de
+# open norm "de naam en het adres van de aanvrager" van Awb 4:2 lid 1 onder a in.
+#
+# De Awb vraagt om "de naam en het adres". Wat een Wlz-aanvraag concreet moet
+# bevatten — achternaam, voorletters, geboortedatum, BSN, straat, huisnummer,
+# postcode, woonplaats en land — volgt uit de persoonsgegevens van artikel 2.7
+# van de Wet basisregistratie personen en uit artikel 3.2.3, tweede lid, Wlz
+# (de vermelding van het burgerservicenummer). De notitie meldt zich via
+# `implements` aan bij de Awb.
+#
+# Beslislogica overgenomen uit corpus/model/.../ciz_proces_aanvraag art. 1.1.1
+# (vault-beslissing i.Zijn naam, adres en BSN aanwezig).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_definitie_complete_aanvraag
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2024-10-01'
+valid_from: '2024-10-01'
+url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+name: CIZ — Definitie complete aanvraag (oktober 2024)
+
+articles:
+  # ── persoonsgegevens — de open norm van Awb 4:2 lid 1 onder a ───────────────
+  # Negen verplichte gegevens; het land mag ook als "land anders" (buitenland)
+  # worden vastgelegd — vandaar de OR op de laatste conditie.
+  - number: 'persoonsgegevens'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Een aanvraag is administratief volledig als de aanvraag de gegevens bevat die het CIZ nodig heeft om de aanvrager te identificeren en te bereiken: de achternaam en voorletters, de geboortedatum, het burgerservicenummer, en het adres (straat, huisnummer, postcode, woonplaats en land).
+      De zorgaanbieder vermeldt bij de aanvraag het burgerservicenummer van de cliënt (artikel 3.2.3, tweede lid, Wlz). De overige gegevens zijn de persoonsgegevens die op grond van artikel 2.7 van de Wet basisregistratie personen in de basisregistratie zijn opgenomen.
+      Woont de cliënt in het buitenland, dan wordt het land vastgelegd in het veld voor een afwijkend land.
+    machine_readable:
+      implements:
+        - law: algemene_wet_bestuursrecht
+          article: '4:2'
+          open_term: vereiste_persoonsgegevens_aanwezig
+          gelet_op: >-
+            Gelet op artikel 4:2, eerste lid, onder a, van de Algemene wet
+            bestuursrecht (naam en adres van de aanvrager), artikel 2.7 van de
+            Wet basisregistratie personen en artikel 3.2.3, tweede lid, van de
+            Wet langdurige zorg.
+      execution:
+        # Manifest: de tien identificerende gegevens, en niets anders — het CIZ
+        # heeft voor deze toets geen medische of financiële gegevens nodig.
+        parameters:
+          - name: achternaam_aanwezig
+            type: boolean
+            required: false
+          - name: voorletters_aanwezig
+            type: boolean
+            required: false
+          - name: bsn_aanwezig
+            type: boolean
+            required: false
+          - name: geboortedatum_aanwezig
+            type: boolean
+            required: false
+          - name: straat_aanwezig
+            type: boolean
+            required: false
+          - name: huisnummer_aanwezig
+            type: boolean
+            required: false
+          - name: postcode_aanwezig
+            type: boolean
+            required: false
+          - name: woonplaats_aanwezig
+            type: boolean
+            required: false
+          - name: land_aanwezig
+            type: boolean
+            required: false
+          - name: land_anders_aanwezig
+            type: boolean
+            required: false
+        input:
+          - name: achternaam_aanwezig
+            type: boolean
+            source: {}
+          - name: voorletters_aanwezig
+            type: boolean
+            source: {}
+          - name: bsn_aanwezig
+            type: boolean
+            description: >-
+              Het burgerservicenummer van de cliënt is vermeld (artikel 3.2.3,
+              tweede lid, Wlz).
+            source: {}
+          - name: geboortedatum_aanwezig
+            type: boolean
+            source: {}
+          - name: straat_aanwezig
+            type: boolean
+            source: {}
+          - name: huisnummer_aanwezig
+            type: boolean
+            source: {}
+          - name: postcode_aanwezig
+            type: boolean
+            source: {}
+          - name: woonplaats_aanwezig
+            type: boolean
+            source: {}
+          - name: land_aanwezig
+            type: boolean
+            description: Het land is vastgelegd in het reguliere landveld.
+            source: {}
+          - name: land_anders_aanwezig
+            type: boolean
+            description: >-
+              Het land is vastgelegd in het veld voor een afwijkend land
+              (cliënt woont in het buitenland).
+            source: {}
+        output:
+          - name: vereiste_persoonsgegevens_aanwezig
+            type: boolean
+        actions:
+          - output: vereiste_persoonsgegevens_aanwezig
+            legal_basis:
+              law: Wet basisregistratie personen
+              bwb_id: BWBR0033715
+              article: '2.7'
+              url: https://wetten.overheid.nl/BWBR0033715/2023-10-01#Artikel2.7
+              juriconnect: jci1.3:c:BWBR0033715&artikel=2.7
+              explanation: >-
+                De identificerende persoonsgegevens uit artikel 2.7 Wet BRP,
+                aangevuld met het burgerservicenummer dat artikel 3.2.3, tweede
+                lid, Wlz bij de aanvraag verlangt. Samen concretiseren zij
+                "de naam en het adres van de aanvrager" (Awb 4:2 lid 1 onder a).
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $achternaam_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $voorletters_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $bsn_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $geboortedatum_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $straat_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $huisnummer_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $postcode_aanwezig
+                  value: true
+                - operation: EQUALS
+                  subject: $woonplaats_aanwezig
+                  value: true
+                # Het land staat óf in het reguliere veld óf in het veld voor
+                # een afwijkend land (buitenland).
+                - operation: OR
+                  conditions:
+                    - operation: EQUALS
+                      subject: $land_aanwezig
+                      value: true
+                    - operation: EQUALS
+                      subject: $land_anders_aanwezig
+                      value: true

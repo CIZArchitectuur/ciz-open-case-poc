@@ -1,0 +1,144 @@
+---
+# Aanvraag-eerst-corpus: de CIZ-Aanwijzing Ter zake kundige vult de open norm
+# diagnose_door_ter_zake_kundige van de notitie "Benodigde informatie bij een
+# Wlz-aanvraag" in: wie merkt het CIZ aan als ter zake kundig om een diagnose
+# te stellen.
+#
+# Bijzonder aan deze hop: beide lagen zijn UITVOERINGSBELEID. Ook binnen één
+# laag werkt het IoC-mechanisme — de ene aanwijzing laat een begrip open, de
+# andere vult het in, zonder dat de eerste de tweede kent.
+#
+# Ditzelfde $id bestaat ook in corpus/wet-eerst (daar met de beleidsregels als
+# opdrachtgever). De twee corpora laden nooit samen; alleen het implements-doel
+# verschilt. Beslislogica overgenomen uit corpus/model (ciz_proces_aanvraag
+# art. 1.2.1, bevoegdheidsdeel); de brontekst leeft als referentiedocument in
+# corpus/referentie (aanwijzing_ter_zake_kundige).
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/schema.json
+$id: ciz_ter_zake_kundige
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-02-23'
+valid_from: '2026-02-23'
+url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+name: CIZ-Aanwijzing Ter zake kundige (bevoegdheidstoets)
+
+articles:
+  # ── 1. Is de diagnose gesteld door een ter zake kundige ─────────────────────
+  # Bevoegdheidstoets per categorie: huisarts met naam + (BIG of AGB);
+  # (anderszins) bevoegde professional met naam + BIG; categorie "anders" via
+  # het expliciete medewerker-oordeel; "niet_bevoegd"/"geen" nooit.
+  - number: '1'
+    url: https://github.com/CIZDigitaliseert/Implementatiemodel_Aanvraag
+    text: |-
+      Is de diagnose gesteld door een ter zake kundige. De kwaliteit van het indicatiebesluit hangt mede af van de deskundigheid en bevoegdheid van degene die de diagnose heeft gesteld (Wet BIG; CIZ-Aanwijzing Ter zake kundige).
+      Naar bevoegdheidscategorie geldt: een huisarts is ter zake kundig met naam en een BIG-nummer of AGB-code; een (anderszins) bevoegde professional met naam en BIG-nummer; is de bevoegdheid "anders", dan beoordeelt de medewerker of de ter zake kundige bevoegd is; "niet bevoegd" of "geen" betekent geen diagnose door een ter zake kundige.
+    machine_readable:
+      implements:
+        - law: ciz_benodigde_informatie
+          article: 'diagnose'
+          open_term: diagnose_door_ter_zake_kundige
+          gelet_op: >-
+            Ter uitvoering van de notitie "Benodigde informatie bij een
+            Wlz-aanvraag" (juli 2025), onderdeel diagnose, jo. de Wet op de
+            beroepen in de individuele gezondheidszorg
+      execution:
+        # Parametermanifest: de bladeren van de bevoegdheidstoets.
+        parameters:
+          - name: bevoegdheid_ter_zake_kundige
+            type: string
+            required: true
+          - name: naam_ter_zake_kundige_aanwezig
+            type: boolean
+            required: true
+          - name: big_nummer_aanwezig
+            type: boolean
+            required: true
+          - name: agb_code_aanwezig
+            type: boolean
+            required: true
+          - name: medewerker_acht_ter_zake_kundige_bevoegd
+            type: boolean
+            required: true
+        input:
+          - name: bevoegdheid_ter_zake_kundige
+            type: string
+            description: >-
+              Bevoegdheidscategorie van de ter zake kundige. Toegestane
+              waarden: niet_bevoegd, geen, huisarts, bevoegd, anders.
+              Onbekende waarden vallen op default (geen diagnose door een
+              ter zake kundige).
+            source: {}
+          - name: naam_ter_zake_kundige_aanwezig
+            type: boolean
+            source: {}
+          - name: big_nummer_aanwezig
+            type: boolean
+            source: {}
+          - name: agb_code_aanwezig
+            type: boolean
+            source: {}
+          - name: medewerker_acht_ter_zake_kundige_bevoegd
+            type: boolean
+            description: >-
+              Expliciet gemaakt medewerker-oordeel voor de categorie
+              "anders" (menselijk oordeel, conventie).
+            source: {}
+        output:
+          # Naam == open-term-id: het contract van de IoC-resolutie.
+          - name: diagnose_door_ter_zake_kundige
+            type: boolean
+        actions:
+          - output: diagnose_door_ter_zake_kundige
+            legal_basis:
+              law: Wet op de beroepen in de individuele gezondheidszorg
+              bwb_id: BWBR0006251
+              url: https://wetten.overheid.nl/BWBR0006251/2025-10-16
+              explanation: >-
+                De Wet BIG bepaalt welke beroepen zelfstandig diagnoses en
+                prognoses mogen stellen; de CIZ-Aanwijzing Ter zake kundige
+                (februari 2026) specificeert welke professionals het CIZ als
+                ter zake kundig aanmerkt.
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: IN
+                    subject: $bevoegdheid_ter_zake_kundige
+                    values: [niet_bevoegd, geen]
+                  then: false
+                - when:
+                    operation: EQUALS
+                    subject: $bevoegdheid_ter_zake_kundige
+                    value: huisarts
+                  then:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $naam_ter_zake_kundige_aanwezig
+                        value: true
+                      - operation: OR
+                        conditions:
+                          - operation: EQUALS
+                            subject: $big_nummer_aanwezig
+                            value: true
+                          - operation: EQUALS
+                            subject: $agb_code_aanwezig
+                            value: true
+                - when:
+                    operation: EQUALS
+                    subject: $bevoegdheid_ter_zake_kundige
+                    value: bevoegd
+                  then:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $naam_ter_zake_kundige_aanwezig
+                        value: true
+                      - operation: EQUALS
+                        subject: $big_nummer_aanwezig
+                        value: true
+                - when:
+                    operation: EQUALS
+                    subject: $bevoegdheid_ter_zake_kundige
+                    value: anders
+                  then: $medewerker_acht_ter_zake_kundige_bevoegd
+              default: false

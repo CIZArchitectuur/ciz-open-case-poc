@@ -1,0 +1,43 @@
+name: Containerized build and tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bicep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Bicep deployments
+        run: |
+          az bicep build --file infra/bootstrap.bicep
+          az bicep build --file infra/apps.bicep
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtime and test images
+        run: docker compose build case-service frontend unit-tests contract-tests integration-tests e2e-tests
+      - name: Start the vertical slice
+        run: docker compose up -d
+      - name: Unit tests
+        run: docker compose run --rm unit-tests
+      - name: Contract tests
+        run: docker compose run --rm contract-tests
+      - name: Integration tests
+        run: docker compose run --rm integration-tests
+      - name: End-to-end tests
+        run: docker compose run --rm e2e-tests
+      - name: Container logs
+        if: failure()
+        run: docker compose logs
+      - name: Stop containers
+        if: always()
+        run: docker compose down -v --remove-orphans

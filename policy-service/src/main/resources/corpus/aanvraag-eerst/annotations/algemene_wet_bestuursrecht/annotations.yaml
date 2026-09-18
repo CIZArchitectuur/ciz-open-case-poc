@@ -1,0 +1,56 @@
+---
+# Stand-off notes (RFC-005) op de Algemene wet bestuursrecht (aanvraag-eerst-corpus).
+# De brontekst leeft óók als referentiedocument in corpus/referentie.
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.2/schema/v0.5.2/annotation-schema.json
+annotations:
+  # LINKING — art. 4:2: aanvraag_voldoet_aan_awb_vereisten.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://algemene_wet_bestuursrecht
+      selector:
+        type: TextQuoteSelector
+        exact: 'De aanvraag wordt ondertekend en bevat ten minste: a. de naam en het adres van de aanvrager; b. de dagtekening; c. een aanduiding van de beschikking die wordt gevraagd.'
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          Artikel 4:2 stelt de vereisten maar vult ze niet in: drie ervan zijn
+          open normen (persoonsgegevens, ondertekening, gegevens en bescheiden)
+          die het CIZ-uitvoeringsbeleid invult via implements. De dagtekening en
+          de aanduiding van de gevraagde beschikking zijn wél gesloten en blijven
+          bladeren van dit artikel.
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://algemene_wet_bestuursrecht/aanvraag_voldoet_aan_awb_vereisten
+        purpose: linking
+  # LINKING — art. 4:5: kan_aanvraag_in_behandeling_worden_genomen.
+  - type: Annotation
+    motivation: commenting
+    creator: ciz-regelrecht-poc
+    target:
+      source: regelrecht://algemene_wet_bestuursrecht
+      selector:
+        type: TextQuoteSelector
+        exact: 'Het bestuursorgaan kan besluiten de aanvraag niet te behandelen, indien: a. de aanvrager niet heeft voldaan aan enig wettelijk voorschrift voor het in behandeling nemen van de aanvraag,'
+        prefix: ''
+        suffix: ''
+    body:
+      - type: TextualBody
+        value: >-
+          De wortel van dit corpus, positief geformuleerd: de aanvraag kan in
+          behandeling worden genomen als er geen grond van lid 1 is om haar buiten
+          behandeling te laten. "Enig wettelijk voorschrift" is een open norm met
+          delegation_type WET: de bijzondere wet (hier de Wlz) vult hem in. Zonder
+          bijzondere wet resolvet hij naar null en gelden er geen aanvullende
+          voorschriften (P3).
+        purpose: commenting
+        format: text/plain
+        language: nl
+      - type: SpecificResource
+        source: regelrecht://algemene_wet_bestuursrecht/kan_aanvraag_in_behandeling_worden_genomen
+        purpose: linking

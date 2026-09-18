@@ -1,0 +1,2 @@
+ALTER TABLE case_documents RENAME TO legacy_case_documents;
+ALTER INDEX case_documents_case_id_idx RENAME TO legacy_case_documents_case_id_idx;

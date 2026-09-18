@@ -1,0 +1,131 @@
+name: Azure deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      suffix:
+        description: Globally unique suffix for the Azure resources (ACR, storage, PostgreSQL)
+        type: string
+        default: cizdev42
+
+# Never run two deployments at once: they would race on the same resource group.
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AZURE_TENANT_ID: 53140781-c4dd-40a2-8a89-92127023d5fe
+  AZURE_SUBSCRIPTION_ID: c3ab647a-0f33-45fb-869b-f406e846005c
+  AZURE_RESOURCE_GROUP: ciz-open-case-poc-dev
+  AZURE_LOCATION: westeurope
+  AZURE_SUFFIX: ${{ inputs.suffix || 'cizdev42' }}
+  ACR_NAME: cizopencase${{ inputs.suffix || 'cizdev42' }}
+  IMAGE_TAG: ${{ github.sha }}
+  REGELRECHT_REVISION: 89f43786b66ed270b066ae32a48332ce189c73a5
+
+jobs:
+  verify:
+    name: Build and test (same as CI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtime and test images
+        run: docker compose build case-service operaton frontend unit-tests contract-tests integration-tests e2e-tests
+      - name: Start the vertical slice
+        run: docker compose up -d
+      - name: Unit tests
+        run: docker compose run --rm unit-tests
+      - name: Contract tests
+        run: docker compose run --rm contract-tests
+      - name: Integration tests
+        run: docker compose run --rm integration-tests
+      - name: End-to-end tests
+        run: docker compose run --rm e2e-tests
+      - name: Container logs
+        if: failure()
+        run: docker compose logs
+      - name: Stop containers
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  deploy:
+    name: Deploy to Azure
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create resource group
+        run: az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
+
+      - name: Deploy infrastructure (ACR, storage, PostgreSQL, Container Apps)
+        run: >
+          az deployment group create
+          --resource-group "$AZURE_RESOURCE_GROUP"
+          --name "ciz-bootstrap-$(date +%Y%m%d-%H%M%S)"
+          --template-file infra/bootstrap.bicep
+          --parameters environment=dev suffix="$AZURE_SUFFIX"
+          postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        run: az acr login --name "$ACR_NAME" --expose-docker-credentials
+
+      - name: Build and push application images
+        env:
+          ACR_LOGIN_SERVER: ${{ env.ACR_NAME }}
+        run: |
+          set -euo pipefail
+          login_server=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+
+          build_push() {
+            local context=$1 dockerfile=$2 image=$3 target=$4
+            local args=(
+              --platform linux/amd64
+              --file "$dockerfile"
+              --build-arg REGELRECHT_REVISION="$REGELRECHT_REVISION"
+              --tag "$login_server/$image:$IMAGE_TAG"
+            )
+            [ -n "$target" ] && args+=(--target "$target")
+            docker buildx build "${args[@]}" --push "$context"
+          }
+
+          build_push . document-service/Dockerfile document-service runtime
+          build_push . policy-service/Dockerfile policy-service runtime
+          build_push . case-service/Dockerfile case-service runtime
+          build_push frontend frontend/Dockerfile frontend runtime
+          build_push processes processes/Dockerfile operaton-ciz ""
+
+      - name: Deploy applications
+        run: >
+          az deployment group create
+          --resource-group "$AZURE_RESOURCE_GROUP"
+          --name "ciz-apps-$(date +%Y%m%d-%H%M%S)"
+          --template-file infra/apps.bicep
+          --parameters environment=dev suffix="$AZURE_SUFFIX"
+          imageTag="$IMAGE_TAG" postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD"
+
+      - name: Show deployed URLs
+        run: |
+          deployment=$(az deployment group list --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query "sortBy(@, &name)[-1].name" -o tsv)
+          az deployment group show --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$deployment" --query properties.outputs -o table

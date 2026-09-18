@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:operaton="http://operaton.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_WlzApplication"
+                  targetNamespace="https://ciz.nl/open-case/processes">
+  <bpmn:process id="wlz-aanvraag" name="Wlz-aanvraag" isExecutable="true" operaton:historyTimeToLive="180">
+    <bpmn:startEvent id="applicationReceived" name="Aanvraag ontvangen">
+      <bpmn:outgoing>Flow_ToIntake</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_ToIntake" sourceRef="applicationReceived" targetRef="intakeApplication" />
+
+    <bpmn:userTask id="intakeApplication" name="Compleetheid beoordelen" operaton:candidateGroups="ciz-medewerker">
+      <bpmn:incoming>Flow_ToIntake</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCompleteness</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_ToCompleteness" sourceRef="intakeApplication" targetRef="completenessGateway" />
+
+    <bpmn:exclusiveGateway id="completenessGateway" name="Aanvraag compleet?" default="Flow_Incomplete">
+      <bpmn:incoming>Flow_ToCompleteness</bpmn:incoming>
+      <bpmn:outgoing>Flow_Complete</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Incomplete</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_Complete" name="Ja" sourceRef="completenessGateway" targetRef="reviewApplication">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${applicationComplete}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Incomplete" name="Nee" sourceRef="completenessGateway" targetRef="collectAdditionalInformation" />
+
+    <bpmn:userTask id="collectAdditionalInformation" name="Aanvullende informatie verzamelen" operaton:candidateGroups="ciz-medewerker">
+      <bpmn:incoming>Flow_Incomplete</bpmn:incoming>
+      <bpmn:outgoing>Flow_RecheckCompleteness</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_RecheckCompleteness" sourceRef="collectAdditionalInformation" targetRef="completenessGateway" />
+
+    <bpmn:userTask id="reviewApplication" name="Aanvraag beoordelen" operaton:candidateGroups="beoordelaar">
+      <bpmn:incoming>Flow_Complete</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToDecision</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_ToDecision" sourceRef="reviewApplication" targetRef="registerDecision" />
+    <bpmn:userTask id="registerDecision" name="Besluit administratief verwerken" operaton:candidateGroups="ciz-medewerker">
+      <bpmn:incoming>Flow_ToDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="registerDecision" targetRef="applicationReviewed" />
+    <bpmn:endEvent id="applicationReviewed" name="Aanvraag afgerond">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_WlzApplication">
+    <bpmndi:BPMNPlane id="BPMNPlane_WlzApplication" bpmnElement="wlz-aanvraag">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="applicationReceived"><dc:Bounds x="80" y="152" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Intake" bpmnElement="intakeApplication"><dc:Bounds x="165" y="130" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway" bpmnElement="completenessGateway" isMarkerVisible="true"><dc:Bounds x="375" y="145" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Additional" bpmnElement="collectAdditionalInformation"><dc:Bounds x="325" y="280" width="170" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Review" bpmnElement="reviewApplication"><dc:Bounds x="485" y="130" width="150" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Decision" bpmnElement="registerDecision"><dc:Bounds x="695" y="130" width="170" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End" bpmnElement="applicationReviewed"><dc:Bounds x="925" y="152" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToIntake" bpmnElement="Flow_ToIntake"><di:waypoint x="116" y="170" /><di:waypoint x="165" y="170" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToCompleteness" bpmnElement="Flow_ToCompleteness"><di:waypoint x="325" y="170" /><di:waypoint x="375" y="170" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Complete" bpmnElement="Flow_Complete"><di:waypoint x="425" y="170" /><di:waypoint x="485" y="170" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Incomplete" bpmnElement="Flow_Incomplete"><di:waypoint x="400" y="195" /><di:waypoint x="400" y="280" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Recheck" bpmnElement="Flow_RecheckCompleteness"><di:waypoint x="410" y="280" /><di:waypoint x="410" y="195" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToDecision" bpmnElement="Flow_ToDecision"><di:waypoint x="635" y="170" /><di:waypoint x="695" y="170" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToEnd" bpmnElement="Flow_ToEnd"><di:waypoint x="865" y="170" /><di:waypoint x="925" y="170" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
