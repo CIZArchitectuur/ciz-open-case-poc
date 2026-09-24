@@ -45,6 +45,25 @@ services:
       timeout: 3s
       retries: 20
     networks: [case-network]
+  
+  karavan-db:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: karavan
+      POSTGRES_USER: karavan
+      POSTGRES_PASSWORD: karavan_password
+    volumes:
+      - postgres-karavan-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U karavan -d karavan"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "5432:5432"
+    networks:
+      - karavan-net
 
   s3:
     image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
@@ -130,7 +149,7 @@ services:
     build:
       context: processes
       dockerfile: Dockerfile
-    image: operaton-ciz:local
+    image: operaton/operaton:latest
     command: ["./operaton.sh", "--webapps", "--rest"]
     environment:
       DB_DRIVER: org.postgresql.Driver
@@ -313,13 +332,84 @@ services:
         condition: service_healthy
     networks: [case-network]
 
+  karavan-registry:
+    image: registry:2
+    container_name: registry
+    ports:
+      - "4000:5000"
+    networks:
+      - karavan-net
+
+  karavan:
+    image: ghcr.io/apache/camel-karavan:4.8.0
+    container_name: karavan
+    ports:
+      - "8085:8080"
+    environment:
+      - KARAVAN_DOCKER_NETWORK=karavan-net
+      - KARAVAN_CONTAINER_IMAGE_REGISTRY=karavan-registry:4000
+      - KARAVAN_DATASOURCE_URL=jdbc:postgresql://karavan-db:5432/karavan
+      - KARAVAN_DATASOURCE_USERNAME=karavan
+      - KARAVAN_DATASOURCE_PASSWORD=karavan_password
+    volumes:
+      # Nodig zodat Karavan zelf containers kan opstarten via jouw Docker engine
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - karavan-db
+      - karavan-registry
+    networks:
+      - karavan-net
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - karavan-net
+
+  akhq:
+    image: tchiotludo/akhq:latest
+    container_name: akhq
+    ports:
+      - "8086:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka:
+              properties:
+                bootstrap.servers: "kafka:29092"
+    depends_on:
+      - kafka
+    networks:
+      - karavan-net 
+
 volumes:
   postgres-case-data:
   postgres-operaton-data:
   postgres-document-data:
+  postgres-karavan-data:
   s3-document-data:
   maven-cache:
   frontend-node-modules:
 
 networks:
   case-network:
+  karavan-net:
+    name: karavan-net
