@@ -1,0 +1,48 @@
+openapi: 3.0.3
+info:
+  title: CIZ Address Validation Adapter API
+  version: 0.1.0
+  description: Provider-neutral address lookup contract for the Camel adapter.
+servers:
+  - url: http://localhost:8080
+paths:
+  /validate:
+    post:
+      operationId: validateAddress
+      summary: Look up a Dutch postal code and house number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddressValidationRequest' }
+      responses:
+        '200':
+          description: Match, no match, unsupported country, or provider unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressValidationResult' }
+        '400':
+          description: Invalid request
+components:
+  schemas:
+    AddressValidationRequest:
+      type: object
+      additionalProperties: false
+      required: [country, postalCode, houseNumber]
+      properties:
+        country: { type: string, minLength: 1, maxLength: 80 }
+        postalCode: { type: string, minLength: 1, maxLength: 12 }
+        houseNumber: { type: string, minLength: 1, maxLength: 20 }
+    AddressValidationResult:
+      type: object
+      additionalProperties: false
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [MATCHED, NO_MATCH, UNAVAILABLE, NOT_SUPPORTED, INVALID_INPUT]
+        message: { type: string }
+        suggestedStreet: { type: string, nullable: true }
+        suggestedCity: { type: string, nullable: true }
+        suggestedPostalCode: { type: string, nullable: true }
+        suggestedHouseNumber: { type: string, nullable: true }

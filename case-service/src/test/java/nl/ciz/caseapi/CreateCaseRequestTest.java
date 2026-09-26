@@ -14,7 +14,8 @@ class CreateCaseRequestTest {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var request = new CreateCaseRequest("applicant-1", "Fictionele Cliënt", "De Vries", "A.B.",
                     "123456782", LocalDate.of(1980, 1, 1), "Voorbeeldstraat", "10A", "1234 AB",
-                    "Utrecht", "Nederland", true, false);
+                    "Utrecht", "Nederland", true, false, CreateCaseRequest.ApplicantRoleEnum.CLIENT,
+                    CreateCaseRequest.SignedByEnum.CLIENT);
             assertTrue(factory.getValidator().validate(request).isEmpty());
         }
     }
@@ -23,7 +24,8 @@ class CreateCaseRequestTest {
     void rejectsBlankNamesAndFutureBirthDates() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var request = new CreateCaseRequest(" ", " ", " ", " ", "ongeldig",
-                    LocalDate.now().plusDays(1), " ", " ", " ", " ", " ", true, false);
+                    LocalDate.now().plusDays(1), " ", " ", " ", " ", " ", true, false,
+                    CreateCaseRequest.ApplicantRoleEnum.CLIENT, CreateCaseRequest.SignedByEnum.CLIENT);
             assertTrue(factory.getValidator().validate(request).size() >= 3);
         }
     }

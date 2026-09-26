@@ -5,7 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/cases': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8080'
+      '/api/cases': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000',
+      '/api/persons': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000',
+      '/api/tasks': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000'
     }
   }
 });

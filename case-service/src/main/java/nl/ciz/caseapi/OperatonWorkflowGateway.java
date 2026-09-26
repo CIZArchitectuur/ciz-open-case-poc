@@ -22,10 +22,12 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 @ApplicationScoped
 public class OperatonWorkflowGateway {
     static final String PROCESS_DEFINITION_KEY = "wlz-aanvraag";
-    private static final String INTAKE_TASK_KEY = "intakeApplication";
-    private static final String ADDITIONAL_INFORMATION_TASK_KEY = "collectAdditionalInformation";
-    private static final String REVIEW_TASK_KEY = "reviewApplication";
-    private static final String DECISION_TASK_KEY = "registerDecision";
+    private static final String REGISTRATION_TASK_KEY = "registerAndCheckApplication";
+    private static final String REQUEST_SUPPLEMENT_TASK_KEY = "requestSupplement";
+    private static final String PROVIDE_SUPPLEMENT_TASK_KEY = "provideSupplement";
+    private static final String TRIAGE_TASK_KEY = "triageApplication";
+    private static final String INVESTIGATION_TASK_KEY = "investigateAndDecide";
+    private static final String OUTGOING_TASK_KEY = "sendOutgoingDecision";
     private static final DateTimeFormatter OPERATON_DATE = new DateTimeFormatterBuilder()
             .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             .appendOffset("+HHMM", "+0000")
@@ -119,7 +121,9 @@ public class OperatonWorkflowGateway {
 
     private List<ProcessInstance> findProcesses(String businessKey, String processInstanceId) {
         try {
-            return queries.findProcessInstances(businessKey, processInstanceId);
+            return queries.findProcessInstances(businessKey, processInstanceId).stream()
+                    .filter(instance -> PROCESS_DEFINITION_KEY.equals(instance.getProcessDefinitionKey()))
+                    .toList();
         } catch (ApiException | ProcessingException exception) {
             throw new WorkflowUnavailableException(exception);
         }
@@ -137,10 +141,12 @@ public class OperatonWorkflowGateway {
         var status = source.getEndTime() == null
                 ? CaseTask.StatusEnum.OPEN : CaseTask.StatusEnum.COMPLETED;
         var type = switch (source.getTaskDefinitionKey()) {
-            case INTAKE_TASK_KEY -> CaseTask.TypeEnum.APPLICATION_INTAKE;
-            case ADDITIONAL_INFORMATION_TASK_KEY -> CaseTask.TypeEnum.ADDITIONAL_INFORMATION;
-            case REVIEW_TASK_KEY -> CaseTask.TypeEnum.APPLICATION_REVIEW;
-            case DECISION_TASK_KEY -> CaseTask.TypeEnum.DECISION_REGISTRATION;
+            case REGISTRATION_TASK_KEY -> CaseTask.TypeEnum.REGISTRATION_ACCEPTANCE;
+            case REQUEST_SUPPLEMENT_TASK_KEY -> CaseTask.TypeEnum.REQUEST_ADDITIONAL_INFORMATION;
+            case PROVIDE_SUPPLEMENT_TASK_KEY -> CaseTask.TypeEnum.SUPPLEMENT_PROVISION;
+            case TRIAGE_TASK_KEY -> CaseTask.TypeEnum.TRIAGE;
+            case INVESTIGATION_TASK_KEY -> CaseTask.TypeEnum.WLZ_INVESTIGATION_DECISION;
+            case OUTGOING_TASK_KEY -> CaseTask.TypeEnum.OUTGOING_COMMUNICATION;
             default -> throw new IllegalArgumentException("Unknown workflow task type");
         };
         var task = new CaseTask(UUID.fromString(source.getId()), caseId, type, status,
@@ -176,9 +182,11 @@ public class OperatonWorkflowGateway {
     }
 
     private static boolean isKnownTask(HistoricTask task) {
-        return Objects.equals(INTAKE_TASK_KEY, task.getTaskDefinitionKey())
-                || Objects.equals(ADDITIONAL_INFORMATION_TASK_KEY, task.getTaskDefinitionKey())
-                || Objects.equals(REVIEW_TASK_KEY, task.getTaskDefinitionKey())
-                || Objects.equals(DECISION_TASK_KEY, task.getTaskDefinitionKey());
+        return Objects.equals(REGISTRATION_TASK_KEY, task.getTaskDefinitionKey())
+                || Objects.equals(REQUEST_SUPPLEMENT_TASK_KEY, task.getTaskDefinitionKey())
+                || Objects.equals(PROVIDE_SUPPLEMENT_TASK_KEY, task.getTaskDefinitionKey())
+                || Objects.equals(TRIAGE_TASK_KEY, task.getTaskDefinitionKey())
+                || Objects.equals(INVESTIGATION_TASK_KEY, task.getTaskDefinitionKey())
+                || Objects.equals(OUTGOING_TASK_KEY, task.getTaskDefinitionKey());
     }
 }
