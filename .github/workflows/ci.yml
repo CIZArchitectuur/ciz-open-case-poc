@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build runtime and test images
-        run: docker compose --profile test build case-service document-service policy-service address-validation-adapter status-notification-adapter operaton frontend unit-tests document-unit-tests address-validation-tests status-notification-tests contract-tests integration-tests e2e-tests ui-tests
+        run: docker compose --profile test build s3 case-service document-service policy-service address-validation-adapter status-notification-adapter operaton frontend unit-tests document-unit-tests address-validation-tests status-notification-tests contract-tests integration-tests e2e-tests ui-tests
       - name: Start the vertical slice
         run: docker compose up -d
       - name: Unit tests

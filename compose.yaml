@@ -135,7 +135,9 @@ services:
     networks: [case-network]
 
   s3:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    build:
+      context: .
+      dockerfile: infra/minio/Dockerfile
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ciz-local
@@ -145,7 +147,7 @@ services:
     ports:
       - "9001:9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/minio/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 30

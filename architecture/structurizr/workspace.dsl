@@ -18,7 +18,7 @@ workspace "CIZ Open Case PoC" "Container-based ordinary Wlz application flow" {
             addressAdapter = container "Address validation adapter" "Looks up Dutch postcode and house number suggestions; never blocks manual entry" "Apache Camel Quarkus, PDOK Locatieserver"
             documentService = container "Document service" "Owns supporting-document metadata and uses Camel routes for S3 object transfer" "Java 21, Quarkus, Apache Camel"
             documentDatabase = container "Document database" "Stores document metadata only" "PostgreSQL" "Database"
-            objectStorage = container "S3 object storage" "Stores private binary documents" "S3 API, MinIO locally" "Database"
+            objectStorage = container "S3 object storage" "Stores private binary documents" "S3 API, MinIO built from pinned upstream source locally" "Database"
             telemetry = container "Telemetry pipeline" "Receives and exports traces while removing sensitive request attributes" "OpenTelemetry Collector, Tempo"
             dashboard = container "Observability dashboard" "Shows provisioned service and workflow traces" "Grafana"
         }
