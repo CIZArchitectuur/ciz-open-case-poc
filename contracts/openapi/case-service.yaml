@@ -25,8 +25,26 @@ paths:
               schema: { $ref: '#/components/schemas/Case' }
         '400':
           $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+  /cases/address-validation:
+    post:
+      operationId: validateAddress
+      summary: Check an address with the configured address lookup integration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddressValidationRequest' }
+      responses:
+        '200':
+          description: Address lookup result; unavailable checks do not block application submission
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddressValidationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
   /cases/{caseId}:
     get:
       operationId: getCase
@@ -46,10 +64,30 @@ paths:
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
+  /persons/{personId}/cases:
+    get:
+      operationId: listPersonCases
+      summary: List the cases linked to one person
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Cases of the person, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Case' }
+        '404': { $ref: '#/components/responses/Problem' }
   /cases/{caseId}/documents:
     post:
       operationId: addCaseDocument
       summary: Add a document to an existing case
+      security:
+        - oidcBearer: []
       parameters:
         - $ref: '#/components/parameters/CaseId'
         - name: X-Document-File-Name
@@ -80,9 +118,13 @@ paths:
           $ref: '#/components/responses/Problem'
         '413': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
     get:
       operationId: listCaseDocuments
       summary: List documents belonging to a case
+      security:
+        - oidcBearer: []
       parameters:
         - $ref: '#/components/parameters/CaseId'
       responses:
@@ -95,10 +137,14 @@ paths:
                 items: { $ref: '#/components/schemas/CaseDocument' }
         '404': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /cases/{caseId}/documents/{documentId}/content:
     get:
       operationId: downloadCaseDocument
       summary: Download a document belonging to a case
+      security:
+        - oidcBearer: []
       parameters:
         - $ref: '#/components/parameters/CaseId'
         - name: documentId
@@ -113,6 +159,8 @@ paths:
               schema: { type: string, format: binary }
         '404': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /cases/{caseId}/tasks:
     get:
       operationId: listCaseTasks
@@ -131,10 +179,53 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+  /cases/{caseId}/supplement:
+    post:
+      operationId: provideApplicantSupplement
+      summary: Submit requested fictional applicant information
+      description: Public only for the fictional applicant demo. Completes only the applicant supplement task for this case.
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema: { type: string, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApplicantSupplementRequest' }
+      responses:
+        '200':
+          description: Supplement received
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaseTask' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /cases/{caseId}/status:
+    get:
+      operationId: getCaseStatus
+      summary: Retrieve the applicant-facing status projection
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Latest status received from application status events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaseStatus' }
+        '404': { $ref: '#/components/responses/Problem' }
   /cases/{caseId}/policy-evaluations:
     get:
       operationId: listCasePolicyEvaluations
       summary: List immutable policy evaluations for a case
+      security:
+        - oidcBearer: []
       parameters:
         - $ref: '#/components/parameters/CaseId'
       responses:
@@ -146,10 +237,14 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/PolicyEvaluation' }
         '404': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /cases/{caseId}/medical-assessments:
     get:
       operationId: listCaseMedicalAssessments
       summary: List immutable medical assessment evaluations for a case
+      security:
+        - oidcBearer: []
       parameters:
         - $ref: '#/components/parameters/CaseId'
       responses:
@@ -161,17 +256,21 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/MedicalAssessment' }
         '404': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /tasks:
     get:
       operationId: listTasks
       summary: List workflow tasks for role work queues
+      security:
+        - oidcBearer: []
       parameters:
         - name: status
           in: query
           schema: { type: string, pattern: '^(OPEN|COMPLETED)$' }
         - name: type
           in: query
-          schema: { type: string, pattern: '^(APPLICATION_INTAKE|ADDITIONAL_INFORMATION|APPLICATION_REVIEW|DECISION_REGISTRATION)$' }
+          schema: { type: string, pattern: '^(REGISTRATION_ACCEPTANCE|REQUEST_ADDITIONAL_INFORMATION|SUPPLEMENT_PROVISION|TRIAGE|WLZ_INVESTIGATION_DECISION|OUTGOING_COMMUNICATION)$' }
       responses:
         '200':
           description: Workflow tasks matching the supplied filters
@@ -184,10 +283,14 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /tasks/{taskId}/intake-form:
     get:
       operationId: getTaskIntakeForm
       summary: Get the active corpus-driven form for an intake or additional-information task
+      security:
+        - oidcBearer: []
       parameters:
         - name: taskId
           in: path
@@ -201,10 +304,14 @@ paths:
               schema: { $ref: '#/components/schemas/IntakeForm' }
         '404': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /tasks/{taskId}/medical-assessment-form:
     get:
       operationId: getTaskMedicalAssessmentForm
       summary: Get the active RegelRecht-driven form for an application review task
+      security:
+        - oidcBearer: []
       parameters:
         - name: taskId
           in: path
@@ -219,15 +326,23 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /tasks/{taskId}/complete:
     post:
       operationId: completeTask
       summary: Complete an open task
+      security:
+        - oidcBearer: []
       parameters:
         - name: taskId
           in: path
           required: true
           schema: { type: string, format: uuid }
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema: { type: string, maxLength: 100 }
       requestBody:
         required: true
         content:
@@ -245,7 +360,14 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
 components:
+  securitySchemes:
+    oidcBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     CaseId:
       name: caseId
@@ -262,7 +384,7 @@ components:
     CreateCaseRequest:
       type: object
       additionalProperties: false
-      required: [applicantId, clientName, lastName, initials, citizenServiceNumber, birthDate, street, houseNumber, postalCode, city, country, permanentCareNeed, permanentSupervision]
+      required: [applicantId, clientName, lastName, initials, citizenServiceNumber, birthDate, street, houseNumber, postalCode, city, country, permanentCareNeed, permanentSupervision, applicantRole, signedBy]
       properties:
         applicantId: { type: string, minLength: 1, maxLength: 100, pattern: '.*\S.*' }
         clientName: { type: string, minLength: 1, maxLength: 200, pattern: '.*\S.*' }
@@ -280,14 +402,114 @@ components:
         country: { type: string, minLength: 1, maxLength: 80, pattern: '.*\S.*' }
         permanentCareNeed: { type: boolean }
         permanentSupervision: { type: boolean }
+        applicantRole:
+          type: string
+          enum: [client, gemachtigde, wettelijk_vertegenwoordiger]
+          description: De hoedanigheid van degene die de aanvraag indient.
+        signedBy:
+          type: string
+          enum: [client, gemachtigde, gevolmachtigde_of_wettelijk_vertegenwoordiger, niemand, anders]
+          description: Wie de aanvraag heeft ondertekend; sluit aan op de RegelRecht-invoer.
+        authorizationSignedByClient:
+          type: boolean
+          nullable: true
+          description: Verklaring van de aanvrager; het CIZ controleert het machtigingsformulier afzonderlijk.
     Case:
-      allOf:
-        - $ref: '#/components/schemas/CreateCaseRequest'
-        - type: object
-          required: [caseId, createdAt]
-          properties:
-            caseId: { type: string, format: uuid }
-            createdAt: { type: string, format: date-time }
+      type: object
+      additionalProperties: false
+      required: [caseId, personId, addressId, applicationId, createdAt, person, address, application]
+      properties:
+        caseId: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        addressId: { type: string, format: uuid }
+        applicationId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        person: { $ref: '#/components/schemas/Person' }
+        address: { $ref: '#/components/schemas/Address' }
+        application: { $ref: '#/components/schemas/Application' }
+    Person:
+      type: object
+      additionalProperties: false
+      required: [personId, clientName, lastName, initials, citizenServiceNumber, birthDate]
+      properties:
+        personId: { type: string, format: uuid }
+        clientName: { type: string }
+        lastName: { type: string }
+        initials: { type: string }
+        citizenServiceNumber: { type: string }
+        birthDate: { type: string, format: date }
+    Address:
+      type: object
+      additionalProperties: false
+      required: [addressId, personId, street, houseNumber, postalCode, city, country]
+      properties:
+        addressId: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        street: { type: string }
+        houseNumber: { type: string }
+        postalCode: { type: string }
+        city: { type: string }
+        country: { type: string }
+    Application:
+      type: object
+      additionalProperties: false
+      required: [applicationId, caseId, applicantId, permanentCareNeed, permanentSupervision, applicantRole, signedBy, submittedAt, applicantStatus, statusUpdatedAt]
+      properties:
+        applicationId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        applicantId: { type: string }
+        permanentCareNeed: { type: boolean }
+        permanentSupervision: { type: boolean }
+        applicantRole: { type: string, enum: [client, gemachtigde, wettelijk_vertegenwoordiger] }
+        signedBy: { type: string, enum: [client, gemachtigde, gevolmachtigde_of_wettelijk_vertegenwoordiger, niemand, anders] }
+        authorizationSignedByClient: { type: boolean, nullable: true }
+        submittedAt: { type: string, format: date-time }
+        supplementRequest: { type: string, nullable: true }
+        supplementResponse: { type: string, nullable: true }
+        supplementRequestedAt: { type: string, format: date-time, nullable: true }
+        supplementRespondedAt: { type: string, format: date-time, nullable: true }
+        decisionResult: { type: string, enum: [GRANTED, DECLINED, NOT_TAKEN_INTO_CONSIDERATION], nullable: true }
+        decisionMotivation: { type: string, nullable: true }
+        decisionMadeAt: { type: string, format: date-time, nullable: true }
+        decisionSentAt: { type: string, format: date-time, nullable: true }
+        applicantStatus:
+          type: string
+          enum: [WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
+        statusUpdatedAt: { type: string, format: date-time }
+
+    CaseStatus:
+      type: object
+      additionalProperties: false
+      required: [caseId, status, updatedAt]
+      properties:
+        caseId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
+        updatedAt: { type: string, format: date-time }
+
+    AddressValidationRequest:
+      type: object
+      additionalProperties: false
+      required: [country, postalCode, houseNumber]
+      properties:
+        country: { type: string, minLength: 1, maxLength: 80 }
+        postalCode: { type: string, minLength: 1, maxLength: 12 }
+        houseNumber: { type: string, minLength: 1, maxLength: 20 }
+
+    AddressValidationResult:
+      type: object
+      additionalProperties: false
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [MATCHED, NO_MATCH, UNAVAILABLE, NOT_SUPPORTED, INVALID_INPUT]
+        message: { type: string }
+        suggestedStreet: { type: string, nullable: true }
+        suggestedCity: { type: string, nullable: true }
+        suggestedPostalCode: { type: string, nullable: true }
+        suggestedHouseNumber: { type: string, nullable: true }
     CaseDocument:
       type: object
       additionalProperties: false
@@ -309,7 +531,7 @@ components:
         caseId: { type: string, format: uuid }
         type:
           type: string
-          enum: [APPLICATION_INTAKE, ADDITIONAL_INFORMATION, APPLICATION_REVIEW, DECISION_REGISTRATION]
+          enum: [REGISTRATION_ACCEPTANCE, REQUEST_ADDITIONAL_INFORMATION, SUPPLEMENT_PROVISION, TRIAGE, WLZ_INVESTIGATION_DECISION, OUTGOING_COMMUNICATION]
         status:
           type: string
           enum: [OPEN, COMPLETED]
@@ -323,6 +545,17 @@ components:
           type: object
           additionalProperties: true
         effectiveDate: { type: string, format: date, nullable: true }
+        registrationOutcome: { type: string, enum: [ACCEPTED, REQUEST_ADDITIONAL_INFORMATION, NOT_TAKEN_INTO_CONSIDERATION] }
+        triageOutcome: { type: string, enum: [FURTHER_INVESTIGATION, DIRECT_HANDLED, NOT_TAKEN_INTO_CONSIDERATION] }
+        decisionResult: { type: string, enum: [GRANTED, DECLINED, NOT_TAKEN_INTO_CONSIDERATION] }
+        decisionMotivation: { type: string, maxLength: 4000 }
+        supplementText: { type: string, maxLength: 4000 }
+    ApplicantSupplementRequest:
+      type: object
+      additionalProperties: false
+      required: [supplementText]
+      properties:
+        supplementText: { type: string, minLength: 1, maxLength: 4000 }
     IntakeForm:
       type: object
       additionalProperties: false

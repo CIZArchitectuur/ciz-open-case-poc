@@ -30,6 +30,23 @@ public final class ProblemMappers {
     }
 
     @Provider
+    public static class PersonNotFoundMapper implements ExceptionMapper<PersonNotFoundException> {
+        @Context UriInfo uriInfo;
+        @Override public Response toResponse(PersonNotFoundException exception) {
+            return response(404, "Person not found", "No person exists with the supplied identifier.", uriInfo);
+        }
+    }
+
+    @Provider
+    public static class PersonDataConflictMapper implements ExceptionMapper<PersonDataConflictException> {
+        @Context UriInfo uriInfo;
+        @Override public Response toResponse(PersonDataConflictException exception) {
+            return response(409, "Person data conflict",
+                    "The birth date does not match the person already registered for this identifier.", uriInfo);
+        }
+    }
+
+    @Provider
     public static class TaskNotFoundMapper implements ExceptionMapper<TaskNotFoundException> {
         @Context UriInfo uriInfo;
         @Override public Response toResponse(TaskNotFoundException exception) {
@@ -60,7 +77,7 @@ public final class ProblemMappers {
         @Context UriInfo uriInfo;
         @Override public Response toResponse(InvalidTaskCompletionException exception) {
             return response(400, "Invalid task completion",
-                    "Completeness facts are required when completing an intake task.", uriInfo);
+                    "One or more required fields for this workflow task are missing or invalid.", uriInfo);
         }
     }
 

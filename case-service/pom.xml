@@ -27,12 +27,15 @@
   </dependencyManagement>
   <dependencies>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-rest-jackson</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-oidc</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-rest-client-jackson</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-hibernate-orm-panache</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-jdbc-postgresql</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-flyway</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-smallrye-health</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-smallrye-fault-tolerance</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-messaging-kafka</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-scheduler</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-opentelemetry</artifactId></dependency>
     <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-hibernate-validator</artifactId></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
@@ -130,8 +133,8 @@
               </configOptions>
             </configuration>
           </execution>
-          <execution>
-            <id>generate-policy-client</id>
+        <execution>
+          <id>generate-policy-client</id>
             <goals><goal>generate</goal></goals>
             <configuration>
               <inputSpec>${project.basedir}/../contracts/openapi/policy-service.yaml</inputSpec>
@@ -153,8 +156,33 @@
                 <useBeanValidation>true</useBeanValidation>
                 <useJakartaEe>true</useJakartaEe>
               </configOptions>
-            </configuration>
-          </execution>
+          </configuration>
+        </execution>
+        <execution>
+          <id>generate-address-validation-client</id>
+          <goals><goal>generate</goal></goals>
+          <configuration>
+            <inputSpec>${project.basedir}/../contracts/openapi/address-validation.yaml</inputSpec>
+            <output>${project.build.directory}/generated-sources/address-validation</output>
+            <generatorName>java</generatorName>
+            <library>microprofile</library>
+            <apiPackage>nl.ciz.caseapi.generated.addressvalidation.api</apiPackage>
+            <modelPackage>nl.ciz.caseapi.generated.addressvalidation.model</modelPackage>
+            <generateApiTests>false</generateApiTests>
+            <generateModelTests>false</generateModelTests>
+            <generateSupportingFiles>true</generateSupportingFiles>
+            <configOptions>
+              <configKey>address-validation-api</configKey>
+              <dateLibrary>java8</dateLibrary>
+              <interfaceOnly>true</interfaceOnly>
+              <microprofileRestClientVersion>3.0</microprofileRestClientVersion>
+              <openApiNullable>false</openApiNullable>
+              <serializationLibrary>jackson</serializationLibrary>
+              <useBeanValidation>true</useBeanValidation>
+              <useJakartaEe>true</useJakartaEe>
+            </configOptions>
+          </configuration>
+        </execution>
         </executions>
       </plugin>
       <plugin>
@@ -172,6 +200,7 @@
                 <source>${project.build.directory}/generated-sources/operaton/src/main/java</source>
                 <source>${project.build.directory}/generated-sources/document/src/main/java</source>
                 <source>${project.build.directory}/generated-sources/policy/src/main/java</source>
+                <source>${project.build.directory}/generated-sources/address-validation/src/main/java</source>
               </sources>
             </configuration>
           </execution>

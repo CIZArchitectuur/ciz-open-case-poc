@@ -1,0 +1,66 @@
+_format_version: "3.0"
+_transform: true
+
+plugins:
+  - name: opentelemetry
+    config:
+      traces_endpoint: http://otel-collector:4318/v1/traces
+      resource_attributes:
+        service.name: kong
+  - name: correlation-id
+    config:
+      header_name: X-Correlation-ID
+      generator: uuid
+      echo_downstream: true
+
+services:
+  - name: case-api
+    url: http://case-service:8080/cases
+    routes:
+      - name: cases
+        paths: [/api/cases]
+        strip_path: true
+
+  - name: internal-address-validation-adapter
+    url: http://address-validation-adapter:8080
+    routes:
+      - name: internal-address-validation
+        paths: [/internal/address-validation]
+        strip_path: true
+
+  - name: person-api
+    url: http://case-service:8080/persons
+    routes:
+      - name: persons
+        paths: [/api/persons]
+        strip_path: true
+
+  - name: task-api
+    url: http://case-service:8080/tasks
+    routes:
+      - name: tasks
+        paths: [/api/tasks]
+        strip_path: true
+
+  - name: operaton-workflow
+    url: http://operaton:8080/engine-rest
+    routes:
+      - name: workflow-api
+        paths: [/api/workflow]
+        strip_path: true
+
+  - name: regelrecht-policy
+    url: http://policy-service:8080
+    routes:
+      - name: rules-api
+        paths:
+          - /api/rules
+        strip_path: true
+
+  - name: document-service
+    url: http://document-service:8080/documents
+    routes:
+      - name: documents-api
+        paths:
+          - /api/documents
+        strip_path: true
