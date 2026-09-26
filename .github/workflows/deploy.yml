@@ -39,7 +39,7 @@ jobs:
         run: docker compose up -d
       - name: Unit tests
         run: docker compose --profile test run --rm unit-tests
-      - name: Contract tests
+      - name: Document-service unit tests
         run: docker compose --profile test run --rm document-unit-tests
       - name: Address-validation adapter tests
         run: docker compose --profile test run --rm address-validation-tests
