@@ -1,0 +1,47 @@
+asyncapi: 3.0.0
+info:
+  title: Application status events
+  version: 1.0.0
+  description: Minimal status-change events shared by the assessment, application, and administrative-support PoC applications.
+defaultContentType: application/json
+servers:
+  localKafka:
+    host: ${KAFKA_BOOTSTRAP_SERVERS}
+    protocol: kafka
+channels:
+  applicationStatusChanged:
+    address: application.status.changed
+    messages:
+      ApplicationStatusChanged:
+        $ref: '#/components/messages/ApplicationStatusChanged'
+operations:
+  publishApplicationStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/applicationStatusChanged'
+    messages:
+      - $ref: '#/channels/applicationStatusChanged/messages/ApplicationStatusChanged'
+  consumeApplicationStatusChanged:
+    action: receive
+    channel:
+      $ref: '#/channels/applicationStatusChanged'
+    messages:
+      - $ref: '#/channels/applicationStatusChanged/messages/ApplicationStatusChanged'
+components:
+  messages:
+    ApplicationStatusChanged:
+      name: ApplicationStatusChanged
+      title: Application status changed
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        required: [eventId, caseId, status, occurredAt, correlationId]
+        properties:
+          eventId: { type: string, format: uuid }
+          caseId: { type: string, format: uuid, description: Case identifier only; never include personal or health data. }
+          status:
+            type: string
+            enum: [WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
+          occurredAt: { type: string, format: date-time }
+          correlationId: { type: string, minLength: 1, maxLength: 100 }

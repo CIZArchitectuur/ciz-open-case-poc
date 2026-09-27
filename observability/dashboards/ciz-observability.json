@@ -1,0 +1,119 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Request rate, latency and trace search for the CIZ Open Case PoC. Metrics are calculated from sampled trace data in Tempo.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Server spans per second, grouped by service. This is computed from traces, not from a separate metrics exporter.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never", "spanNulls": false }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo" }, "query": "{ kind = server && resource.service.name =~ \"${service:regex}\" } | rate() by (resource.service.name)", "queryType": "traceql", "metricsQueryType": "range", "refId": "A", "step": "$__interval", "tableType": "traces" }],
+      "title": "Requestvolume per service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "95e percentiel van de duur van serveraanroepen per service; gebaseerd op de traces die Tempo heeft ontvangen.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never", "spanNulls": false }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo" }, "query": "{ kind = server && resource.service.name =~ \"${service:regex}\" } | quantile_over_time(duration, 0.95) by (resource.service.name)", "queryType": "traceql", "metricsQueryType": "range", "refId": "A", "step": "$__interval", "tableType": "traces" }],
+      "title": "Responstijd (p95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Traces waarin een instrumentatie expliciet een foutstatus heeft vastgelegd. Een HTTP 4xx-respons telt niet automatisch als foutstatus.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 35, "showPoints": "never", "spanNulls": false }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo" }, "query": "{ status = error && resource.service.name =~ \"${service:regex}\" } | rate() by (resource.service.name)", "queryType": "traceql", "metricsQueryType": "range", "refId": "A", "step": "$__interval", "tableType": "traces" }],
+      "title": "Fouttraces per service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Recente traces met foutstatus. Open een trace-ID voor de volledige keten en span-details.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false, "reducer": ["sum"], "countRows": false, "fields": "" } },
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo" }, "limit": 50, "query": "{ status = error && resource.service.name =~ \"${service:regex}\" }", "queryType": "traceql", "refId": "A", "tableType": "traces" }],
+      "title": "Recente fouttraces",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "description": "Recente serverrequests binnen de geselecteerde services. Selecteer een trace-ID om de volledige requestketen te onderzoeken.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] } }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 15 },
+      "id": 5,
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false, "reducer": ["sum"], "countRows": false, "fields": "" } },
+      "targets": [{ "datasource": { "type": "tempo", "uid": "tempo" }, "limit": 100, "query": "{ kind = server && resource.service.name =~ \"${service:regex}\" }", "queryType": "traceql", "refId": "A", "tableType": "traces" }],
+      "title": "Recente requests · open trace voor details",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 24 },
+      "id": 6,
+      "options": { "content": "**Interpretatie**\n\nDeze grafieken zijn berekend uit ontvangen traces en zijn daarom alleen een indicatie zolang tracing niet volledig of gesampled is. Er zijn nog geen afzonderlijke metrics voor CPU/geheugen, PostgreSQL, Kafka/Redpanda, MinIO of de frontend. Fouttraces zijn spans met een expliciete OpenTelemetry-foutstatus.", "mode": "markdown" },
+      "title": "Reikwijdte van dit dashboard",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["ciz", "observability", "opentelemetry", "tempo"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "Alle services", "value": ".*" },
+        "includeAll": false,
+        "label": "Service",
+        "name": "service",
+        "options": [
+          { "selected": true, "text": "Alle services", "value": ".*" },
+          { "selected": false, "text": "Kong gateway", "value": "kong" },
+          { "selected": false, "text": "Zaakservice", "value": "case-service" },
+          { "selected": false, "text": "Documentservice", "value": "document-service" },
+          { "selected": false, "text": "RegelRecht", "value": "policy-service" },
+          { "selected": false, "text": "Adresvalidatie", "value": "address-validation-adapter" },
+          { "selected": false, "text": "Statusnotificatie", "value": "status-notification-adapter" },
+          { "selected": false, "text": "Operaton workflow", "value": "operaton" }
+        ],
+        "query": "Alle services,kong,case-service,document-service,policy-service,address-validation-adapter,status-notification-adapter,operaton",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["10s", "30s", "1m", "5m", "15m"], "time_options": ["5m", "15m", "1h", "3h", "6h", "12h", "24h"] },
+  "timezone": "browser",
+  "title": "CIZ PoC · Requests & traces",
+  "uid": "ciz-observability",
+  "version": 1,
+  "weekStart": ""
+}

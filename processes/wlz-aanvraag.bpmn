@@ -8,64 +8,137 @@
                   id="Definitions_WlzApplication"
                   targetNamespace="https://ciz.nl/open-case/processes">
   <bpmn:process id="wlz-aanvraag" name="Wlz-aanvraag" isExecutable="true" operaton:historyTimeToLive="180">
-    <bpmn:startEvent id="applicationReceived" name="Aanvraag ontvangen">
-      <bpmn:outgoing>Flow_ToIntake</bpmn:outgoing>
+    <bpmn:laneSet id="LaneSet_Roles">
+      <bpmn:lane id="Lane_Applicant" name="Aanvrager">
+        <bpmn:flowNodeRef>applicationReceived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>provideSupplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>applicationDecisionReceived</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_WPAO" name="WP-AO / CIZ-medewerker">
+        <bpmn:flowNodeRef>registerAndCheckApplication</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>registrationOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>requestSupplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>sendOutgoingDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>applicationClosed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_WlZ" name="WP-Wlz / Beoordelaar">
+        <bpmn:flowNodeRef>triageApplication</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>triageOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>investigateAndDecide</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="applicationReceived" name="Aanvraag ingediend">
+      <bpmn:outgoing>Flow_ToRegistration</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_ToIntake" sourceRef="applicationReceived" targetRef="intakeApplication" />
+    <bpmn:sequenceFlow id="Flow_ToRegistration" sourceRef="applicationReceived" targetRef="registerAndCheckApplication" />
 
-    <bpmn:userTask id="intakeApplication" name="Compleetheid beoordelen" operaton:candidateGroups="ciz-medewerker">
-      <bpmn:incoming>Flow_ToIntake</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToCompleteness</bpmn:outgoing>
+    <bpmn:userTask id="registerAndCheckApplication" name="Aanvraag registreren en controleren" operaton:candidateGroups="ciz-medewerker">
+      <bpmn:incoming>Flow_ToRegistration</bpmn:incoming>
+      <bpmn:incoming>Flow_SupplementReceived</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRegistrationOutcome</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_ToCompleteness" sourceRef="intakeApplication" targetRef="completenessGateway" />
-
-    <bpmn:exclusiveGateway id="completenessGateway" name="Aanvraag compleet?" default="Flow_Incomplete">
-      <bpmn:incoming>Flow_ToCompleteness</bpmn:incoming>
-      <bpmn:outgoing>Flow_Complete</bpmn:outgoing>
-      <bpmn:outgoing>Flow_Incomplete</bpmn:outgoing>
+    <bpmn:sequenceFlow id="Flow_ToRegistrationOutcome" sourceRef="registerAndCheckApplication" targetRef="registrationOutcome" />
+    <bpmn:exclusiveGateway id="registrationOutcome" name="Registratie en acceptatie?" default="Flow_RegistrationNeedsSupplement">
+      <bpmn:incoming>Flow_ToRegistrationOutcome</bpmn:incoming>
+      <bpmn:outgoing>Flow_RegistrationAccepted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RegistrationNeedsSupplement</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RegistrationNotTaken</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_Complete" name="Ja" sourceRef="completenessGateway" targetRef="reviewApplication">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${applicationComplete}</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="Flow_RegistrationAccepted" name="Geaccepteerd" sourceRef="registrationOutcome" targetRef="triageApplication">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${registrationOutcome == 'ACCEPTED'}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_Incomplete" name="Nee" sourceRef="completenessGateway" targetRef="collectAdditionalInformation" />
+    <bpmn:sequenceFlow id="Flow_RegistrationNeedsSupplement" name="Aanvulling nodig" sourceRef="registrationOutcome" targetRef="requestSupplement" />
+    <bpmn:sequenceFlow id="Flow_RegistrationNotTaken" name="Niet in behandeling" sourceRef="registrationOutcome" targetRef="sendOutgoingDecision">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${registrationOutcome == 'NOT_TAKEN_INTO_CONSIDERATION'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
 
-    <bpmn:userTask id="collectAdditionalInformation" name="Aanvullende informatie verzamelen" operaton:candidateGroups="ciz-medewerker">
-      <bpmn:incoming>Flow_Incomplete</bpmn:incoming>
-      <bpmn:outgoing>Flow_RecheckCompleteness</bpmn:outgoing>
+    <bpmn:userTask id="requestSupplement" name="Aanvullende informatie opvragen" operaton:candidateGroups="ciz-medewerker">
+      <bpmn:incoming>Flow_RegistrationNeedsSupplement</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSupplementWait</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_RecheckCompleteness" sourceRef="collectAdditionalInformation" targetRef="completenessGateway" />
+    <bpmn:sequenceFlow id="Flow_ToSupplementWait" sourceRef="requestSupplement" targetRef="provideSupplement" />
+    <bpmn:userTask id="provideSupplement" name="Aanvullende informatie aanleveren" operaton:candidateGroups="aanvrager">
+      <bpmn:incoming>Flow_ToSupplementWait</bpmn:incoming>
+      <bpmn:outgoing>Flow_SupplementReceived</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_SupplementReceived" sourceRef="provideSupplement" targetRef="registerAndCheckApplication" />
 
-    <bpmn:userTask id="reviewApplication" name="Aanvraag beoordelen" operaton:candidateGroups="beoordelaar">
-      <bpmn:incoming>Flow_Complete</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToDecision</bpmn:outgoing>
+    <bpmn:userTask id="triageApplication" name="Aanvraag triëren" operaton:candidateGroups="beoordelaar">
+      <bpmn:incoming>Flow_RegistrationAccepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToTriageOutcome</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_ToDecision" sourceRef="reviewApplication" targetRef="registerDecision" />
-    <bpmn:userTask id="registerDecision" name="Besluit administratief verwerken" operaton:candidateGroups="ciz-medewerker">
-      <bpmn:incoming>Flow_ToDecision</bpmn:incoming>
+    <bpmn:sequenceFlow id="Flow_ToTriageOutcome" sourceRef="triageApplication" targetRef="triageOutcome" />
+    <bpmn:exclusiveGateway id="triageOutcome" name="Uitkomst triage?">
+      <bpmn:incoming>Flow_ToTriageOutcome</bpmn:incoming>
+      <bpmn:outgoing>Flow_TriageToInvestigation</bpmn:outgoing>
+      <bpmn:outgoing>Flow_TriageDirect</bpmn:outgoing>
+      <bpmn:outgoing>Flow_TriageNotTaken</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_TriageToInvestigation" name="Nader onderzoek ingepland" sourceRef="triageOutcome" targetRef="investigateAndDecide">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${triageOutcome == 'FURTHER_INVESTIGATION'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_TriageDirect" name="Direct afgehandeld (basis)" sourceRef="triageOutcome" targetRef="sendOutgoingDecision">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${triageOutcome == 'DIRECT_HANDLED'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_TriageNotTaken" name="Niet in behandeling" sourceRef="triageOutcome" targetRef="sendOutgoingDecision">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${triageOutcome == 'NOT_TAKEN_INTO_CONSIDERATION'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:userTask id="investigateAndDecide" name="Onderzoek en besluitvorming Wlz" operaton:candidateGroups="beoordelaar">
+      <bpmn:incoming>Flow_TriageToInvestigation</bpmn:incoming>
+      <bpmn:outgoing>Flow_InvestigationComplete</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_InvestigationComplete" sourceRef="investigateAndDecide" targetRef="sendOutgoingDecision" />
+
+    <bpmn:userTask id="sendOutgoingDecision" name="Beslissing verzenden en registreren" operaton:candidateGroups="ciz-medewerker">
+      <bpmn:incoming>Flow_RegistrationNotTaken</bpmn:incoming>
+      <bpmn:incoming>Flow_TriageDirect</bpmn:incoming>
+      <bpmn:incoming>Flow_TriageNotTaken</bpmn:incoming>
+      <bpmn:incoming>Flow_InvestigationComplete</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToApplicantEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_ToApplicantEnd" sourceRef="sendOutgoingDecision" targetRef="applicationDecisionReceived" />
+    <bpmn:intermediateThrowEvent id="applicationDecisionReceived" name="Beslissing verstuurd">
+      <bpmn:incoming>Flow_ToApplicantEnd</bpmn:incoming>
       <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="registerDecision" targetRef="applicationReviewed" />
-    <bpmn:endEvent id="applicationReviewed" name="Aanvraag afgerond">
+    </bpmn:intermediateThrowEvent>
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="applicationDecisionReceived" targetRef="applicationClosed" />
+    <bpmn:endEvent id="applicationClosed" name="Aanvraag afgerond">
       <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
 
   <bpmndi:BPMNDiagram id="BPMNDiagram_WlzApplication">
     <bpmndi:BPMNPlane id="BPMNPlane_WlzApplication" bpmnElement="wlz-aanvraag">
-      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="applicationReceived"><dc:Bounds x="80" y="152" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Intake" bpmnElement="intakeApplication"><dc:Bounds x="165" y="130" width="160" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Gateway" bpmnElement="completenessGateway" isMarkerVisible="true"><dc:Bounds x="375" y="145" width="50" height="50" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Additional" bpmnElement="collectAdditionalInformation"><dc:Bounds x="325" y="280" width="170" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Review" bpmnElement="reviewApplication"><dc:Bounds x="485" y="130" width="150" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Decision" bpmnElement="registerDecision"><dc:Bounds x="695" y="130" width="170" height="80" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_End" bpmnElement="applicationReviewed"><dc:Bounds x="925" y="152" width="36" height="36" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Edge_ToIntake" bpmnElement="Flow_ToIntake"><di:waypoint x="116" y="170" /><di:waypoint x="165" y="170" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_ToCompleteness" bpmnElement="Flow_ToCompleteness"><di:waypoint x="325" y="170" /><di:waypoint x="375" y="170" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Complete" bpmnElement="Flow_Complete"><di:waypoint x="425" y="170" /><di:waypoint x="485" y="170" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Incomplete" bpmnElement="Flow_Incomplete"><di:waypoint x="400" y="195" /><di:waypoint x="400" y="280" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Recheck" bpmnElement="Flow_RecheckCompleteness"><di:waypoint x="410" y="280" /><di:waypoint x="410" y="195" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_ToDecision" bpmnElement="Flow_ToDecision"><di:waypoint x="635" y="170" /><di:waypoint x="695" y="170" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_ToEnd" bpmnElement="Flow_ToEnd"><di:waypoint x="865" y="170" /><di:waypoint x="925" y="170" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="LaneShape_Applicant" bpmnElement="Lane_Applicant"><dc:Bounds x="60" y="70" width="1400" height="110" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="LaneShape_WPAO" bpmnElement="Lane_WPAO"><dc:Bounds x="60" y="180" width="1400" height="170" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="LaneShape_WlZ" bpmnElement="Lane_WlZ"><dc:Bounds x="60" y="350" width="1400" height="170" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="applicationReceived"><dc:Bounds x="100" y="105" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Register" bpmnElement="registerAndCheckApplication"><dc:Bounds x="180" y="225" width="150" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_RegistrationOutcome" bpmnElement="registrationOutcome" isMarkerVisible="true"><dc:Bounds x="385" y="240" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_RequestSupplement" bpmnElement="requestSupplement"><dc:Bounds x="500" y="280" width="150" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_SupplementReceived" bpmnElement="provideSupplement"><dc:Bounds x="720" y="83" width="165" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Triage" bpmnElement="triageApplication"><dc:Bounds x="500" y="395" width="150" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_TriageOutcome" bpmnElement="triageOutcome" isMarkerVisible="true"><dc:Bounds x="700" y="410" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Investigation" bpmnElement="investigateAndDecide"><dc:Bounds x="835" y="395" width="165" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Send" bpmnElement="sendOutgoingDecision"><dc:Bounds x="1120" y="225" width="165" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_DecisionReceived" bpmnElement="applicationDecisionReceived"><dc:Bounds x="1340" y="105" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End" bpmnElement="applicationClosed"><dc:Bounds x="1400" y="225" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToRegistration" bpmnElement="Flow_ToRegistration"><di:waypoint x="136" y="123" /><di:waypoint x="180" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToRegistrationOutcome" bpmnElement="Flow_ToRegistrationOutcome"><di:waypoint x="330" y="265" /><di:waypoint x="385" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_RegistrationAccepted" bpmnElement="Flow_RegistrationAccepted"><di:waypoint x="410" y="290" /><di:waypoint x="410" y="435" /><di:waypoint x="500" y="435" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_RegistrationNeedsSupplement" bpmnElement="Flow_RegistrationNeedsSupplement"><di:waypoint x="435" y="265" /><di:waypoint x="500" y="320" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_RegistrationNotTaken" bpmnElement="Flow_RegistrationNotTaken"><di:waypoint x="435" y="265" /><di:waypoint x="1120" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToSupplementWait" bpmnElement="Flow_ToSupplementWait"><di:waypoint x="650" y="320" /><di:waypoint x="802" y="163" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_SupplementReceived" bpmnElement="Flow_SupplementReceived"><di:waypoint x="720" y="123" /><di:waypoint x="255" y="225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToTriageOutcome" bpmnElement="Flow_ToTriageOutcome"><di:waypoint x="650" y="435" /><di:waypoint x="700" y="435" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_TriageToInvestigation" bpmnElement="Flow_TriageToInvestigation"><di:waypoint x="750" y="435" /><di:waypoint x="835" y="435" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_TriageDirect" bpmnElement="Flow_TriageDirect"><di:waypoint x="725" y="410" /><di:waypoint x="725" y="265" /><di:waypoint x="1120" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_TriageNotTaken" bpmnElement="Flow_TriageNotTaken"><di:waypoint x="725" y="460" /><di:waypoint x="725" y="330" /><di:waypoint x="1120" y="330" /><di:waypoint x="1120" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_InvestigationComplete" bpmnElement="Flow_InvestigationComplete"><di:waypoint x="1000" y="435" /><di:waypoint x="1120" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToApplicantEnd" bpmnElement="Flow_ToApplicantEnd"><di:waypoint x="1285" y="265" /><di:waypoint x="1340" y="123" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToEnd" bpmnElement="Flow_ToEnd"><di:waypoint x="1376" y="123" /><di:waypoint x="1400" y="243" /></bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

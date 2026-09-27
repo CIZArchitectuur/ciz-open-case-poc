@@ -56,7 +56,15 @@ PERSONAL_DATA = {
     "postalCode": "1234 AB",
     "city": "Utrecht",
     "country": "Nederland",
+    "applicantRole": "client",
+    "signedBy": "client",
+    "authorizationSignedByClient": None,
 }
+
+
+def unique_personal_data():
+    import uuid
+    return PERSONAL_DATA | {"citizenServiceNumber": f"{uuid.uuid4().int % 1_000_000_000:09d}"}
 
 POSITIVE_MEDICAL_ASSESSMENT = {
     "diagnose_vastgesteld": True,
