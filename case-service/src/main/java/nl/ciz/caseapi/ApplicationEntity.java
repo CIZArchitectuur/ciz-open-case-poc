@@ -57,15 +57,4 @@ public class ApplicationEntity extends PanacheEntityBase {
     @Column(name = "supplement_responded_at")
     public Instant supplementRespondedAt;
 
-    @Column(name = "decision_result", length = 40)
-    public String decisionResult;
-
-    @Column(name = "decision_motivation", length = 4000)
-    public String decisionMotivation;
-
-    @Column(name = "decision_made_at")
-    public Instant decisionMadeAt;
-
-    @Column(name = "decision_sent_at")
-    public Instant decisionSentAt;
 }

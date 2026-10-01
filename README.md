@@ -2,6 +2,27 @@
 
 Container-first proof of concept for a fictional Wlz application. The current vertical slice creates and retrieves cases, stores supporting documents through the S3 protocol, checks Dutch addresses through an Apache Camel Quarkus/PDOK adapter, evaluates intake completeness and a human-validated medical assessment with RegelRecht, and runs the resulting workflow in Operaton. It also demonstrates asynchronous applicant-status events over Kafka, with an independent Apache Camel Quarkus batch consumer for a mocked administrative-support application. Each integration capability is packaged in its own immutable application image; Camel routes and supporting Java code are included at build time. It contains a React frontend, Kong API gateway, independent Quarkus case, document, policy and Camel integration services, Operaton, Kafka-compatible Redpanda, isolated PostgreSQL databases, versioned OpenAPI and AsyncAPI contracts, Flyway migrations, health endpoints, and containerized tests.
 
+## Feature overview
+
+| Component | Current PoC capability |
+| --- | --- |
+| React frontend | Applicant wizard, progress and outcomes; separate authenticated CIZ employee and reviewer work queues. |
+| Kong API gateway | Declarative API routing, correlation IDs and tracing. Rate limiting is not yet configured; Kong has no public host port. |
+| Apache Camel address adapter | Dutch postcode and house-number lookup through PDOK. Suggestions require confirmation; manual entry remains possible. |
+| RegelRecht / policy service | Policy checks and medical decision support, with rule versions and evaluation provenance retained. Human-validated facts remain required. |
+| Operaton | Executable Wlz BPMN, role-based task routing, supplementary-information loop, triage, investigation and administrative recording of dispatch. No actual post or messages are sent. |
+| Kafka-compatible Redpanda | Asynchronous application-status events, transactional outbox and applicant-status projection. Medical advice is not delivered through Kafka yet. |
+| Apache Camel status adapter | Independent consumer that batches status-event counts for mocked administrative support. |
+| Keycloak | Local OIDC login with PKCE and API-enforced employee/reviewer roles. Applicant access remains a fictional-data demo; DEZI integration is not verified. |
+| Case service + PostgreSQL | Small domain model for persons, addresses, applications, cases, assessments and multiple decisions per case. Decisions retain references to their source task and assessments. |
+| Document service + separate PostgreSQL database | Document metadata and links to cases and stored objects; independent from the case database. |
+| S3-compatible MinIO | Storage of document files; the document database stores metadata, not the files themselves. |
+| OpenTelemetry, Tempo and Grafana | Configured distributed tracing and dashboards for the instrumented components; not a guarantee of complete monitoring of every component. |
+| Structurizr and Mermaid | Version-controlled architecture views and domain class diagram. |
+| Docker Compose, automated tests and Playwright | Reproducible container-based environment, contract/integration/chain/UI checks and a visible Wlz browser demo. |
+
+The implemented process is **ordinary Wlz only**. DKIZ, Wlz art. 21, Wzd and Wzd-AT are not implemented. OCR, external dispatch and asynchronous medical-advice delivery are outside the current slice. All demo data must be fictional.
+
 ## Prerequisites
 
 Only Git and Docker with Docker Compose are required. Java, Maven, Node.js, npm, Python, and PostgreSQL run exclusively inside containers.
@@ -89,6 +110,22 @@ docker compose --profile test run --rm ui-tests
 ```
 
 The API-dependent suites start their required services automatically. Run all suites with `make test`; Make only wraps Docker Compose.
+
+To follow the ordinary Wlz Playwright scenario live in a browser, start the dedicated local demo profile:
+
+```bash
+docker compose --profile demo up --build ui-demo
+```
+
+Open <http://localhost:6080/vnc.html?autoconnect=true&resize=scale&view_only=true> when the terminal reports that the demo screen is ready. Playwright begins 15 seconds later and shows the ordinary Wlz route in this order:
+
+1. The applicant fills in the five-step application form and submits it.
+2. The CIZ employee registers and checks the application.
+3. The reviewer triages the application and records a direct decision.
+4. The CIZ employee records that the decision was sent.
+5. The applicant sees the final progress and outcome.
+
+The active role and action appear in a banner; the CIZ policy check shows its field count and scrolls to each field. Use the noVNC fullscreen button to make the application easier to read. The completed applicant result remains visible for 90 seconds. The VNC connection is view-only so clicks in the viewer cannot interrupt the scenario. Stop the run with Ctrl+C in the terminal. The VNC page is published only on localhost. This demo creates one fictitious case and does not clear or overwrite existing database data.
 
 ## Azure deploy
 

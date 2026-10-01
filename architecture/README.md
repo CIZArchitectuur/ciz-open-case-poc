@@ -1,5 +1,9 @@
 # Architecture
 
+The current case domain model is documented in [the case class diagram](case-class-diagram.md).
+
+Decisions are separate append-only records linked to a case. Their profile is a string and their grounds are a list of strings. The producing task and the latest available policy/medical assessment at decision time are recorded as references; assessment facts and rule provenance remain in the assessment records. Sending marks the newest decision as sent. Migration V13 preserves existing decisions before removing their old application columns. The frontend case/decision transport types are generated from OpenAPI with `sh scripts/generate-frontend-models.sh`; Java models are generated during the container build.
+
 This PoC minimizes custom platform code. Each milestone should first compose an established component through versioned configuration and documented contracts. Custom code is reserved for CIZ-specific user journeys, mappings, and rules that cannot be expressed by the selected component.
 
 | Capability | Default component | Custom boundary |

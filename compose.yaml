@@ -189,12 +189,16 @@ services:
         condition: service_started
       document-service:
         condition: service_healthy
+        restart: true
       policy-service:
         condition: service_healthy
+        restart: true
       operaton:
         condition: service_healthy
+        restart: true
       address-validation-adapter:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "kong-health"]
       interval: 5s
@@ -368,6 +372,7 @@ services:
         condition: service_healthy
       kong:
         condition: service_healthy
+        restart: true
       kafka:
         condition: service_healthy
       otel-collector:
@@ -394,6 +399,7 @@ services:
     depends_on:
       kong:
         condition: service_healthy
+        restart: true
       case-service:
         condition: service_healthy
     ports:
@@ -540,11 +546,31 @@ services:
     build:
       context: tests/ui
       dockerfile: Dockerfile
+      target: test
     depends_on:
       frontend:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+    networks: [case-network]
+
+  ui-demo:
+    profiles: [demo]
+    build:
+      context: tests/ui
+      dockerfile: Dockerfile
+      target: demo
+    environment:
+      PLAYWRIGHT_HEADLESS: "false"
+      PLAYWRIGHT_SLOW_MO_MS: "350"
+      PLAYWRIGHT_DEMO_HOLD_MS: "90000"
+    depends_on:
+      frontend:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:6080:6080"
     networks: [case-network]
 
 volumes:

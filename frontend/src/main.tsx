@@ -55,7 +55,7 @@ function applicantStatus(tasks: CaseTask[], projectedStatus?: Case['application'
   return 'In behandeling';
 }
 
-function decisionLabel(result: Case['application']['decisionResult']) {
+function decisionLabel(result: Case['decisions'][number]['result'] | undefined) {
   switch (result) {
     case 'GRANTED': return 'Aanvraag toegekend';
     case 'DECLINED': return 'Aanvraag afgewezen';
@@ -224,7 +224,7 @@ function ApplicantPage() {
   const investigation = tasks.find(task => task.type === 'WLZ_INVESTIGATION_DECISION');
   const outgoing = tasks.find(task => task.type === 'OUTGOING_COMMUNICATION');
   const registrationRejected = Boolean(registration?.status === 'COMPLETED'
-    && !triage && currentCase?.application.decisionResult === 'NOT_TAKEN_INTO_CONSIDERATION');
+    && !triage && currentCase?.decisions.at(-1)?.result === 'NOT_TAKEN_INTO_CONSIDERATION');
   const triageSkipped = registrationRejected;
   const investigationSkipped = registrationRejected
     || Boolean(triage?.status === 'COMPLETED' && outgoing && !investigation);
@@ -355,8 +355,11 @@ function ApplicantPage() {
         <div className="wizard-actions">
           {applicationStep > 0 && <button type="button" className="secondary" onClick={() => setApplicationStep(step => step - 1)}>Vorige</button>}
           {applicationStep < applicationSteps.length - 1
-            ? <button type="button" disabled={!stepComplete} onClick={() => setApplicationStep(step => step + 1)}>Volgende</button>
-            : <button disabled={busy}>{busy ? 'Bezig…' : 'Aanvraag indienen'}</button>}
+            ? <button key="next" type="button" disabled={!stepComplete} onClick={event => {
+              event.preventDefault();
+              setApplicationStep(step => step + 1);
+            }}>Volgende</button>
+            : <button key="submit" type="submit" disabled={busy}>{busy ? 'Bezig…' : 'Aanvraag indienen'}</button>}
         </div>
       </form>
     </section>
@@ -402,11 +405,13 @@ function ApplicantPage() {
           </label>
           <button disabled={busy || !supplementResponse.trim()}>{busy ? 'Versturen…' : 'Aanvulling versturen'}</button>
         </form>}
-        {currentCase.application.decisionSentAt && currentCase.application.decisionResult && <div className="decision-result">
-          <h4>{decisionLabel(currentCase.application.decisionResult)}</h4>
-          {currentCase.application.decisionMotivation && <p>{currentCase.application.decisionMotivation}</p>}
-          {currentCase.application.decisionSentAt && <span>Verzonden op {new Date(currentCase.application.decisionSentAt).toLocaleDateString('nl-NL')}</span>}
-        </div>}
+        {currentCase.decisions.filter(decision => decision.sentAt).map(decision => <div className="decision-result" key={decision.decisionId}>
+          <h4>{decisionLabel(decision.result)}</h4>
+          <p>{decision.motivation}</p>
+          {decision.zorgprofiel && <p>Zorgprofiel: {decision.zorgprofiel}</p>}
+          {decision.grondslagen.length > 0 && <p>Grondslagen: {decision.grondslagen.join(', ')}</p>}
+          <span>Verzonden op {new Date(decision.sentAt!).toLocaleDateString('nl-NL')}</span>
+        </div>)}
         <p className="resume-hint">Deze pagina kan later opnieuw worden geopend via het bewaarde adres.</p>
       </article>}
     </section>
@@ -759,20 +764,25 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
       const completion = completionByTask[item.taskId] ?? {};
       let input: TaskCompletionInput = {};
       if (mode === 'registration') {
-        input = { facts: factsForSubmission(item, factsByTask[item.taskId]), registrationOutcome: completion.registrationOutcome };
+        input = { facts: factsForSubmission(item, factsByTask[item.taskId]), registrationOutcome: completion.registrationOutcome,
+          decisionMotivation: completion.decisionMotivation };
       } else if (mode === 'supplement-request') {
         input = { supplementText: completion.supplementText };
       } else if (mode === 'triage') {
         input = {
           triageOutcome: completion.triageOutcome,
           decisionResult: completion.decisionResult,
-          decisionMotivation: completion.decisionMotivation
+          decisionMotivation: completion.decisionMotivation,
+          zorgprofiel: completion.zorgprofiel,
+          grondslagen: completion.grondslagen?.filter(value => value.trim())
         };
       } else if (mode === 'investigation') {
         input = {
           facts: factsForSubmission(item, factsByTask[item.taskId]),
           decisionResult: completion.decisionResult,
-          decisionMotivation: completion.decisionMotivation
+          decisionMotivation: completion.decisionMotivation,
+          zorgprofiel: completion.zorgprofiel,
+          grondslagen: completion.grondslagen?.filter(value => value.trim())
         };
       }
       await completeTask(item.taskId, input);
@@ -979,9 +989,21 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
             </form>
             <p className="resume-hint">PDF, JPEG of PNG, maximaal 10 MB. De processtap verandert niet automatisch.</p>
           </>}
-          {mode === 'outgoing' && item.case.application.decisionResult && <div className="decision-result">
-            <h4>{decisionLabel(item.case.application.decisionResult)}</h4>
-            {item.case.application.decisionMotivation && <p>{item.case.application.decisionMotivation}</p>}
+          {(mode === 'investigation' || (mode === 'triage' && completionByTask[item.taskId]?.triageOutcome === 'DIRECT_HANDLED')) && <>
+            <label>Zorgprofiel (optioneel)
+              <input maxLength={100} value={completionByTask[item.taskId]?.zorgprofiel ?? ''}
+                onChange={event => setCompletionByTask(current => ({ ...current,
+                  [item.taskId]: { ...(current[item.taskId] ?? {}), zorgprofiel: event.target.value } }))} />
+            </label>
+            <label>Grondslagen (optioneel, één per regel)
+              <textarea rows={3} value={(completionByTask[item.taskId]?.grondslagen ?? []).join('\n')}
+                onChange={event => setCompletionByTask(current => ({ ...current,
+                  [item.taskId]: { ...(current[item.taskId] ?? {}), grondslagen: event.target.value.split('\n') } }))} />
+            </label>
+          </>}
+          {mode === 'outgoing' && item.case.decisions.at(-1) && <div className="decision-result">
+            <h4>{decisionLabel(item.case.decisions.at(-1)?.result)}</h4>
+            <p>{item.case.decisions.at(-1)?.motivation}</p>
           </div>}
         </div>
         {(() => {
@@ -998,7 +1020,7 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
                 : investigation
                   ? intakeIsReady(item, factsByTask[item.taskId]) && Boolean(input.decisionResult)
                     && Boolean(input.decisionMotivation?.trim())
-                  : Boolean(item.case.application.decisionResult);
+                  : Boolean(item.case.decisions.at(-1)?.result);
           return <div className="actions">
             <a className="text-link" href={`/aanvrager?caseId=${encodeURIComponent(item.caseId)}`}>Voortgang aanvrager</a>
             <button disabled={Boolean(busyTask) || !ready} onClick={() => void finish(item)}>

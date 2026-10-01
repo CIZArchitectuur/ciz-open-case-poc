@@ -1,3 +1,5 @@
+import type { components } from './generated/case-api';
+
 export type CreateCasePayload = {
   applicantId: string;
   clientName: string;
@@ -17,51 +19,8 @@ export type CreateCasePayload = {
   authorizationSignedByClient: boolean | null;
 };
 
-export type Case = {
-  caseId: string;
-  personId: string;
-  addressId: string;
-  applicationId: string;
-  createdAt: string;
-  person: {
-    personId: string;
-    clientName: string;
-    lastName: string;
-    initials: string;
-    citizenServiceNumber: string;
-    birthDate: string;
-  };
-  address: {
-    addressId: string;
-    personId: string;
-    street: string;
-    houseNumber: string;
-    postalCode: string;
-    city: string;
-    country: string;
-  };
-  application: {
-    applicationId: string;
-    caseId: string;
-    applicantId: string;
-    permanentCareNeed: boolean;
-    permanentSupervision: boolean;
-    applicantRole: CreateCasePayload['applicantRole'];
-    signedBy: CreateCasePayload['signedBy'];
-    authorizationSignedByClient: boolean | null;
-    submittedAt: string;
-    applicantStatus: 'WAITING_FOR_REGISTRATION' | 'WAITING_FOR_DOCUMENTS' | 'WAITING_FOR_TRIAGE' | 'WAITING_FOR_ASSESSMENT' | 'DECISION_PENDING' | 'DECISION_SENT';
-    statusUpdatedAt: string;
-    supplementRequest?: string | null;
-    supplementResponse?: string | null;
-    supplementRequestedAt?: string | null;
-    supplementRespondedAt?: string | null;
-    decisionResult?: 'GRANTED' | 'DECLINED' | 'NOT_TAKEN_INTO_CONSIDERATION' | null;
-    decisionMotivation?: string | null;
-    decisionMadeAt?: string | null;
-    decisionSentAt?: string | null;
-  };
-};
+export type Decision = components['schemas']['Decision'];
+export type Case = components['schemas']['Case'];
 
 export type TaskType = 'REGISTRATION_ACCEPTANCE' | 'REQUEST_ADDITIONAL_INFORMATION' | 'SUPPLEMENT_PROVISION' | 'TRIAGE' | 'WLZ_INVESTIGATION_DECISION' | 'OUTGOING_COMMUNICATION';
 export type TaskStatus = 'OPEN' | 'COMPLETED';
@@ -153,11 +112,4 @@ export type WorkItem = CaseTask & {
   medicalAssessments: MedicalAssessment[];
 };
 
-export type TaskCompletionInput = {
-  facts?: IntakeFacts;
-  registrationOutcome?: 'ACCEPTED' | 'REQUEST_ADDITIONAL_INFORMATION' | 'NOT_TAKEN_INTO_CONSIDERATION';
-  triageOutcome?: 'FURTHER_INVESTIGATION' | 'DIRECT_HANDLED' | 'NOT_TAKEN_INTO_CONSIDERATION';
-  decisionResult?: 'GRANTED' | 'DECLINED' | 'NOT_TAKEN_INTO_CONSIDERATION';
-  decisionMotivation?: string;
-  supplementText?: string;
-};
+export type TaskCompletionInput = components['schemas']['TaskCompletionRequest'];

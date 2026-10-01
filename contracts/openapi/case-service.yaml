@@ -417,7 +417,7 @@ components:
     Case:
       type: object
       additionalProperties: false
-      required: [caseId, personId, addressId, applicationId, createdAt, person, address, application]
+      required: [caseId, personId, addressId, applicationId, createdAt, person, address, application, decisions]
       properties:
         caseId: { type: string, format: uuid }
         personId: { type: string, format: uuid }
@@ -427,6 +427,29 @@ components:
         person: { $ref: '#/components/schemas/Person' }
         address: { $ref: '#/components/schemas/Address' }
         application: { $ref: '#/components/schemas/Application' }
+        decisions:
+          type: array
+          description: Besluiten in chronologische volgorde; een zaak kan meerdere besluiten bevatten.
+          items: { $ref: '#/components/schemas/Decision' }
+    Decision:
+      type: object
+      additionalProperties: false
+      required: [decisionId, caseId, result, motivation, grondslagen, decidedAt]
+      properties:
+        decisionId: { type: string, format: uuid }
+        caseId: { type: string, format: uuid }
+        result: { type: string, enum: [GRANTED, DECLINED, NOT_TAKEN_INTO_CONSIDERATION] }
+        motivation: { type: string }
+        zorgprofiel: { type: string, nullable: true, maxLength: 100 }
+        grondslagen:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 100 }
+        decidedAt: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time, nullable: true }
+        sourceTaskId: { type: string, format: uuid, nullable: true }
+        policyEvaluationId: { type: string, format: uuid, nullable: true }
+        medicalAssessmentId: { type: string, format: uuid, nullable: true }
     Person:
       type: object
       additionalProperties: false
@@ -468,10 +491,6 @@ components:
         supplementResponse: { type: string, nullable: true }
         supplementRequestedAt: { type: string, format: date-time, nullable: true }
         supplementRespondedAt: { type: string, format: date-time, nullable: true }
-        decisionResult: { type: string, enum: [GRANTED, DECLINED, NOT_TAKEN_INTO_CONSIDERATION], nullable: true }
-        decisionMotivation: { type: string, nullable: true }
-        decisionMadeAt: { type: string, format: date-time, nullable: true }
-        decisionSentAt: { type: string, format: date-time, nullable: true }
         applicantStatus:
           type: string
           enum: [WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
@@ -549,6 +568,11 @@ components:
         triageOutcome: { type: string, enum: [FURTHER_INVESTIGATION, DIRECT_HANDLED, NOT_TAKEN_INTO_CONSIDERATION] }
         decisionResult: { type: string, enum: [GRANTED, DECLINED, NOT_TAKEN_INTO_CONSIDERATION] }
         decisionMotivation: { type: string, maxLength: 4000 }
+        zorgprofiel: { type: string, maxLength: 100 }
+        grondslagen:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 100 }
         supplementText: { type: string, maxLength: 4000 }
     ApplicantSupplementRequest:
       type: object
