@@ -214,6 +214,8 @@ def test_medical_route_records_decision_then_outgoing_confirmation():
         "facts": POSITIVE_MEDICAL_ASSESSMENT,
         "decisionResult": "GRANTED",
         "decisionMotivation": "De gevalideerde bevindingen ondersteunen toekenning.",
+        "zorgprofiel": "PoC-profiel",
+        "grondslagen": ["PoC-grondslag"],
     })
     assert completed["status"] == "COMPLETED"
 
@@ -221,14 +223,22 @@ def test_medical_route_records_decision_then_outgoing_confirmation():
     assert medical["criteriaMet"] is True
     assert medical["facts"] == POSITIVE_MEDICAL_ASSESSMENT
     assert len(medical["regulationHash"]) == 64
-    application = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["application"]
-    assert application["decisionResult"] == "GRANTED"
-    assert application["decisionSentAt"] is None
+    case_result = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()
+    assert "decisionResult" not in case_result["application"]
+    decision = case_result["decisions"][-1]
+    assert decision["result"] == "GRANTED"
+    assert decision["sentAt"] is None
+    assert decision["zorgprofiel"] == "PoC-profiel"
+    assert decision["grondslagen"] == ["PoC-grondslag"]
+    assert decision["medicalAssessmentId"] == medical["assessmentId"]
+    assert decision["policyEvaluationId"]
+    assert decision["sourceTaskId"] == investigation["taskId"]
 
     outgoing = complete(case_id, "OUTGOING_COMMUNICATION", {})
     assert outgoing["status"] == "COMPLETED"
-    final_application = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["application"]
-    assert final_application["decisionSentAt"]
+    final_decision = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["decisions"][-1]
+    assert final_decision["sentAt"]
+    assert final_decision["decisionId"] == decision["decisionId"]
     process = requests.get(f"{OPERATON_URL}/history/process-instance", params={
         "processInstanceBusinessKey": case_id, "processDefinitionKey": "wlz-aanvraag",
     }, timeout=10).json()[0]
@@ -249,8 +259,39 @@ def test_short_triage_routes_skip_investigation(triage_outcome, decision_result)
     complete(case_id, "TRIAGE", body)
     active_types = {task["type"] for task in case_tasks(case_id) if task["status"] == "OPEN"}
     assert active_types == {"OUTGOING_COMMUNICATION"}
-    application = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["application"]
-    assert application["decisionResult"] == decision_result
+    decisions = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["decisions"]
+    assert decisions[-1]["result"] == decision_result
+    assert decisions[-1]["grondslagen"] == []
+
+
+def test_case_keeps_multiple_decisions_and_their_original_provenance():
+    case = create_case()
+    case_id = case["caseId"]
+    assert case["decisions"] == []
+    for result in ("GRANTED", "DECLINED"):
+        if result == "DECLINED":
+            started = requests.post(f"{OPERATON_URL}/process-definition/key/wlz-aanvraag/start",
+                                    json={"businessKey": case_id, "variables": {}}, timeout=10)
+            assert started.status_code == 200
+        register(case_id)
+        completed = complete(case_id, "TRIAGE", {
+            "triageOutcome": "DIRECT_HANDLED", "decisionResult": result,
+            "decisionMotivation": "Fictieve nieuwe besluitvorming binnen dezelfde zaak.",
+        })
+        if result == "GRANTED":
+            first = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["decisions"][0]
+            repeated = requests.post(f"{BASE_URL}/tasks/{completed['taskId']}/complete",
+                                     headers=auth_headers("beoordelaar"), json={}, timeout=10)
+            assert repeated.status_code == 200
+            assert len(requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["decisions"]) == 1
+        complete(case_id, "OUTGOING_COMMUNICATION", {})
+    decisions = requests.get(f"{BASE_URL}/cases/{case_id}", timeout=10).json()["decisions"]
+    assert len(decisions) == 2
+    assert [decision["result"] for decision in decisions] == ["GRANTED", "DECLINED"]
+    assert decisions[0]["decisionId"] != decisions[1]["decisionId"]
+    assert decisions[0]["policyEvaluationId"] == first["policyEvaluationId"]
+    assert decisions[0]["policyEvaluationId"] != decisions[1]["policyEvaluationId"]
+    assert all(decision["sentAt"] for decision in decisions)
 
 
 def test_registration_rejection_routes_directly_to_outgoing():

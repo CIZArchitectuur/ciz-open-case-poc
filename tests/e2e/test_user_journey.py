@@ -131,4 +131,4 @@ def test_frontend_and_proxied_case_journey_are_available():
     assert completed.status_code == 200
     assert completed.json()["status"] == "COMPLETED"
     final = requests.get(f"{FRONTEND_URL}/api/cases/{case_id}", timeout=10).json()
-    assert final["application"]["decisionSentAt"]
+    assert final["decisions"][-1]["sentAt"]

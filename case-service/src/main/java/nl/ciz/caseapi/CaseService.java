@@ -21,6 +21,7 @@ import nl.ciz.caseapi.generated.model.Person;
 import nl.ciz.caseapi.generated.model.Address;
 import nl.ciz.caseapi.generated.model.CaseStatus;
 import nl.ciz.caseapi.generated.model.Application;
+import nl.ciz.caseapi.generated.model.Decision;
 import nl.ciz.caseapi.generated.model.TaskCompletionRequest;
 import nl.ciz.caseapi.generated.model.ApplicantSupplementRequest;
 import nl.ciz.caseapi.generated.operaton.model.VariableValue;
@@ -180,7 +181,7 @@ public class CaseService {
                 policyEvaluations.persist(task.getCaseId(), taskId, facts, evaluation, effectiveDate, now());
                 var outcome = request.getRegistrationOutcome().toString();
                 if ("NOT_TAKEN_INTO_CONSIDERATION".equals(outcome)) {
-                    saveDecision(application, outcome, request.getDecisionMotivation());
+                    saveDecision(application.caseId, taskId, outcome, request);
                 }
                 variables.put("registrationOutcome", textVariable(outcome));
             }
@@ -205,9 +206,9 @@ public class CaseService {
                 if (request.getTriageOutcome() == null) throw new InvalidTaskCompletionException();
                 var outcome = request.getTriageOutcome().toString();
                 if ("DIRECT_HANDLED".equals(outcome)) {
-                    saveDecision(application, requiredDecision(request), request.getDecisionMotivation());
+                    saveDecision(application.caseId, taskId, requiredDecision(request), request);
                 } else if ("NOT_TAKEN_INTO_CONSIDERATION".equals(outcome)) {
-                    saveDecision(application, "NOT_TAKEN_INTO_CONSIDERATION", request.getDecisionMotivation());
+                    saveDecision(application.caseId, taskId, "NOT_TAKEN_INTO_CONSIDERATION", request);
                 }
                 variables.put("triageOutcome", textVariable(outcome));
             }
@@ -220,12 +221,15 @@ public class CaseService {
                 var evaluation = policy.evaluateMedicalAssessment(request.getFacts(), effectiveDate);
                 if (!evaluation.getAssessmentComplete()) throw new InvalidTaskCompletionException();
                 medicalAssessments.persist(task.getCaseId(), taskId, request.getFacts(), evaluation, effectiveDate, now());
-                saveDecision(application, result, motivation);
+                saveDecision(application.caseId, taskId, result, request);
             }
             case OUTGOING_COMMUNICATION -> {
-                if (application.decisionResult == null) throw new InvalidTaskCompletionException();
-                application.decisionSentAt = now();
-                application.persist();
+                var decision = DecisionEntity.<DecisionEntity>find(
+                        "caseId = ?1 order by decidedAt desc, decisionId desc", application.caseId)
+                        .firstResultOptional().orElseThrow(InvalidTaskCompletionException::new);
+                if (decision.sentAt != null) throw new InvalidTaskCompletionException();
+                decision.sentAt = now();
+                decision.persist();
             }
         }
         var completed = workflow.completeTask(taskId, variables);
@@ -327,12 +331,29 @@ public class CaseService {
         return request.getDecisionResult().toString();
     }
 
-    private void saveDecision(ApplicationEntity application, String result, String motivation) {
-        application.decisionResult = result;
-        application.decisionMotivation = requiredText(motivation);
-        application.decisionMadeAt = now();
-        application.decisionSentAt = null;
-        application.persist();
+    private void saveDecision(UUID caseId, UUID taskId, String result, TaskCompletionRequest request) {
+        var decision = new DecisionEntity();
+        decision.decisionId = UUID.randomUUID();
+        decision.caseId = caseId;
+        decision.result = result;
+        decision.motivation = requiredText(request.getDecisionMotivation());
+        decision.zorgprofiel = request.getZorgprofiel() == null ? null : request.getZorgprofiel().trim();
+        decision.grondslagen = request.getGrondslagen() == null ? List.of()
+                : request.getGrondslagen().stream().map(String::trim).toList();
+        if ((decision.zorgprofiel != null && decision.zorgprofiel.length() > 100)
+                || decision.grondslagen.size() > 20
+                || decision.grondslagen.stream().anyMatch(value -> value.isEmpty() || value.length() > 100)) {
+            throw new InvalidTaskCompletionException();
+        }
+        decision.decidedAt = now();
+        decision.sourceTaskId = taskId;
+        var policyEvaluation = CasePolicyEvaluationEntity.<CasePolicyEvaluationEntity>find(
+                "caseId = ?1 order by evaluatedAt desc, evaluationId desc", caseId).firstResult();
+        var medicalAssessment = CaseMedicalAssessmentEntity.<CaseMedicalAssessmentEntity>find(
+                "caseId = ?1 order by assessedAt desc, assessmentId desc", caseId).firstResult();
+        decision.policyEvaluationId = policyEvaluation == null ? null : policyEvaluation.evaluationId;
+        decision.medicalAssessmentId = medicalAssessment == null ? null : medicalAssessment.assessmentId;
+        decision.persistAndFlush();
     }
 
     private Instant now() {
@@ -349,6 +370,14 @@ public class CaseService {
                 .addressId(entity.addressId)
                 .applicationId(application.applicationId)
                 .createdAt(entity.createdAt.atOffset(ZoneOffset.UTC))
+                .decisions(DecisionEntity.<DecisionEntity>list(
+                        "caseId = ?1 order by decidedAt, decisionId", entity.caseId).stream()
+                        .map(decision -> new Decision().decisionId(decision.decisionId).caseId(decision.caseId)
+                                .result(Decision.ResultEnum.fromValue(decision.result)).motivation(decision.motivation)
+                                .zorgprofiel(decision.zorgprofiel).grondslagen(decision.grondslagen)
+                                .decidedAt(offset(decision.decidedAt)).sentAt(offset(decision.sentAt))
+                                .sourceTaskId(decision.sourceTaskId).policyEvaluationId(decision.policyEvaluationId)
+                                .medicalAssessmentId(decision.medicalAssessmentId)).toList())
                 .person(new Person()
                         .personId(person.personId).clientName(person.clientName).lastName(person.lastName)
                         .initials(person.initials).citizenServiceNumber(person.citizenServiceNumber)
@@ -370,12 +399,7 @@ public class CaseService {
                         .supplementRequest(application.supplementRequest)
                         .supplementResponse(application.supplementResponse)
                         .supplementRequestedAt(offset(application.supplementRequestedAt))
-                        .supplementRespondedAt(offset(application.supplementRespondedAt))
-                        .decisionResult(application.decisionResult == null ? null
-                                : Application.DecisionResultEnum.fromValue(application.decisionResult))
-                        .decisionMotivation(application.decisionMotivation)
-                        .decisionMadeAt(offset(application.decisionMadeAt))
-                        .decisionSentAt(offset(application.decisionSentAt)));
+                        .supplementRespondedAt(offset(application.supplementRespondedAt)));
     }
 
     private static java.time.OffsetDateTime offset(Instant instant) {

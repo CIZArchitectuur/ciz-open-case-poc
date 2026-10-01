@@ -52,7 +52,7 @@ workspace "CIZ Open Case PoC" "Container-based ordinary Wlz application flow" {
     views {
         container system "Containers" {
             include *
-            autoLayout lr
+            autoLayout lr 500 450
         }
     }
 }
