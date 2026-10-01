@@ -1,6 +1,6 @@
 # CIZ Open Case PoC
 
-Container-first proof of concept for a fictional Wlz application. The current vertical slice creates and retrieves cases, stores supporting documents through the S3 protocol, checks Dutch addresses through an Apache Camel Quarkus/PDOK adapter, evaluates intake completeness and a human-validated medical assessment with RegelRecht, and runs the resulting workflow in Operaton. It also demonstrates asynchronous applicant-status events over Kafka, with an independent Apache Camel Quarkus batch consumer for a mocked administrative-support application. Each integration capability is packaged in its own immutable application image; Camel routes and supporting Java code are included at build time. It contains a React frontend, Kong API gateway, independent Quarkus case, document, policy and Camel integration services, Operaton, Kafka-compatible Redpanda, isolated PostgreSQL databases, versioned OpenAPI and AsyncAPI contracts, Flyway migrations, health endpoints, and containerized tests.
+Container-first proof of concept for a fictional Wlz application. The current vertical slice creates and retrieves cases, stores supporting documents through the S3 protocol, checks Dutch addresses through an Apache Camel Quarkus/PDOK adapter, evaluates policy rules against validated intake and medical facts with RegelRecht, and runs the resulting workflow in Operaton. Professional and medical judgments remain human inputs. It also demonstrates asynchronous applicant-status events over Kafka, with an independent Apache Camel Quarkus batch consumer for a mocked administrative-support application. Each integration capability is packaged in its own immutable application image; Camel routes and supporting Java code are included at build time. It contains a React frontend, Kong API gateway, independent Quarkus case, document, policy and Camel integration services, Operaton, Kafka-compatible Redpanda, isolated PostgreSQL databases, versioned OpenAPI and AsyncAPI contracts, Flyway migrations, health endpoints, and containerized tests.
 
 ## Feature overview
 
@@ -9,8 +9,8 @@ Container-first proof of concept for a fictional Wlz application. The current ve
 | React frontend | Applicant wizard, progress and outcomes; separate authenticated CIZ employee and reviewer work queues. |
 | Kong API gateway | Declarative API routing, correlation IDs and tracing. Rate limiting is not yet configured; Kong has no public host port. |
 | Apache Camel address adapter | Dutch postcode and house-number lookup through PDOK. Suggestions require confirmation; manual entry remains possible. |
-| RegelRecht / policy service | Policy checks and medical decision support, with rule versions and evaluation provenance retained. Human-validated facts remain required. |
-| Operaton | Executable Wlz BPMN, role-based task routing, supplementary-information loop, triage, investigation and administrative recording of dispatch. No actual post or messages are sent. |
+| RegelRecht / policy service | Versioned policy evaluation based on validated case facts, including evaluation provenance, intermediate results and explanations. Professional/medical judgments remain human inputs and are not inferred by the rule engine. |
+| Operaton | Executable Wlz process orchestration: role-based task routing, supplementary-information loops, triage, investigation and administrative dispatch recording. Policy decisions are delegated to the policy service rather than encoded in BPMN. |
 | Kafka-compatible Redpanda | Asynchronous application-status events, transactional outbox and applicant-status projection. Medical advice is not delivered through Kafka yet. |
 | Apache Camel status adapter | Independent consumer that batches status-event counts for mocked administrative support. |
 | Keycloak | Local OIDC login with PKCE and API-enforced employee/reviewer roles. Applicant access remains a fictional-data demo; DEZI integration is not verified. |
@@ -21,7 +21,11 @@ Container-first proof of concept for a fictional Wlz application. The current ve
 | Structurizr and Mermaid | Version-controlled architecture views and domain class diagram. |
 | Docker Compose, automated tests and Playwright | Reproducible container-based environment, contract/integration/chain/UI checks and a visible Wlz browser demo. |
 
-The implemented process is **ordinary Wlz only**. DKIZ, Wlz art. 21, Wzd and Wzd-AT are not implemented. OCR, external dispatch and asynchronous medical-advice delivery are outside the current slice. All demo data must be fictional.
+The implemented process covers a deliberately simplified **ordinary Wlz** flow. DKIZ, Wlz art. 21, Wzd and Wzd-AT are outside the current scope. OCR-based extraction, real external dispatch and asynchronous medical-advice exchange are not yet implemented. All data used by the PoC must be fictional.
+
+### Architectural intent
+
+This PoC intentionally separates process orchestration, policy evaluation, case state, document storage, integration and asynchronous messaging. Components communicate through explicit APIs and events and do not share databases. Runtime configuration is reproducible from Git; graphical tools are optional views rather than the source of truth. The goal is to evaluate whether a modular, code-first and AI-assisted engineering approach can support CIZ case handling without concentrating these responsibilities in a single application platform.
 
 ## Prerequisites
 
