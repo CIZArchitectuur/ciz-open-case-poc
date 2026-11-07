@@ -16,6 +16,11 @@ public class DocumentResource implements DocumentsApi {
     }
 
     @Override
+    public Response uploadArtifact(UUID caseId, File body) {
+        return Response.status(201).entity(service.uploadArtifact(caseId, body)).build();
+    }
+
+    @Override
     public Response uploadDocument(UUID caseId, String fileName, String contentType, File body) {
         var created = service.upload(caseId, fileName, contentType, body);
         return Response.created(URI.create("/documents/" + created.getDocumentId())).entity(created).build();

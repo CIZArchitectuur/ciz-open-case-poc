@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: '.',
   testMatch: 'wlz.spec.ts',
-  timeout: process.env.PLAYWRIGHT_HEADLESS === 'false' ? 360_000 : 120_000,
+  timeout: process.env.EXPECT_REAL_OCR === 'true' ? 1_800_000 : (process.env.PLAYWRIGHT_HEADLESS === 'false' ? 360_000 : 120_000),
   expect: { timeout: 20_000 },
   workers: 1,
   retries: 0,

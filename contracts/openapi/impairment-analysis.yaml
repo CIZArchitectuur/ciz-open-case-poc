@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Dossier impairment analysis adapter
+  version: 0.1.0
+  description: Internal adapter to the upstream RobBERT/curation/Ernst pipeline. All outputs are untrusted proposals.
+paths:
+  /analysis:
+    post:
+      operationId: analyseDossier
+      parameters:
+        - {name: X-Correlation-ID, in: header, schema: {type: string, maxLength: 100}}
+        - {name: traceparent, in: header, schema: {type: string, maxLength: 200}}
+        - {name: tracestate, in: header, schema: {type: string, maxLength: 512}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnalysisInput'}
+      responses:
+        '200':
+          description: Proposals with source provenance
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnalysisOutput'}
+        '400': {description: Missing or invalid source units}
+        '503': {description: Not configured or upstream unavailable; no sensitive error details}
+components:
+  schemas:
+    AnalysisInput:
+      type: object
+      required: [analysisNumber, documents]
+      properties:
+        analysisNumber: {type: integer, format: int64, minimum: 1}
+        documents:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [documentId, extractionId, docKey, classificationUnits]
+            properties:
+              documentId: {type: string, format: uuid}
+              extractionId: {type: string, format: uuid}
+              docKey: {type: string, maxLength: 200}
+              classificationUnits:
+                type: array
+                items: {type: object, additionalProperties: true}
+    AnalysisOutput:
+      type: object
+      required: [mock, pipelineVersion, classifierModel, findings, sourceUnits]
+      properties:
+        mock: {type: boolean}
+        pipelineVersion: {type: string}
+        classifierModel: {type: string, description: 'Configured, operator-verified upstream model/checkpoint; simulation is explicitly identified.'}
+        suggestedCareProfile: {type: string, nullable: true}
+        clientPicture: {type: string, nullable: true, maxLength: 20000}
+        sourceUnits:
+          type: array
+          maxItems: 20000
+          items: {$ref: '#/components/schemas/Source'}
+        findings:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/Finding'}
+    Finding:
+      type: object
+      required: [findingId, domain, explanation, sources]
+      properties:
+        findingId: {type: string, maxLength: 100}
+        domain: {type: string, maxLength: 200}
+        score: {type: integer, nullable: true, minimum: 0, maximum: 4, description: 'Upstream Ernst score; null means unassessed, not zero.'}
+        explanation: {type: string, maxLength: 20000}
+        sources:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/Source'}
+    Source:
+      type: object
+      required: [documentId, extractionId, docKey, text]
+      properties:
+        documentId: {type: string, format: uuid}
+        extractionId: {type: string, format: uuid}
+        docKey: {type: string}
+        unitId: {type: string, nullable: true}
+        subdocumentId: {type: string, nullable: true}
+        pages: {type: array, items: {type: integer, minimum: 1}}
+        regionIds: {type: array, items: {type: integer, minimum: 0}}
+        text: {type: string, maxLength: 20000}

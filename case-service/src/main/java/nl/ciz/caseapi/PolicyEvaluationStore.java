@@ -11,6 +11,7 @@ import nl.ciz.caseapi.generated.policy.model.IntakeEvaluation;
 
 @ApplicationScoped
 public class PolicyEvaluationStore {
+    @jakarta.inject.Inject AssessmentGateway assessments;
     @Transactional
     public void persist(UUID caseId, UUID taskId, Map<String, Object> facts, IntakeEvaluation evaluation,
             LocalDate effectiveDate, Instant evaluatedAt) {
@@ -29,20 +30,14 @@ public class PolicyEvaluationStore {
         entity.regulationHash = evaluation.getRegulationHash();
         entity.effectiveDate = effectiveDate;
         entity.evaluatedAt = evaluatedAt;
-        entity.persistAndFlush();
+        DomainCalls.call(()->{assessments.api().savePolicyEvaluation(caseId, assessments.transport(entity,
+                nl.ciz.caseapi.generated.assessment.model.PolicyEvaluation.class));return null;});
     }
 
     public List<Map<String, Object>> list(UUID caseId) {
-        return CasePolicyEvaluationEntity.<CasePolicyEvaluationEntity>list("caseId = ?1 order by evaluatedAt", caseId).stream()
-                .map(entity -> Map.<String, Object>ofEntries(
-                        Map.entry("evaluationId", entity.evaluationId), Map.entry("caseId", entity.caseId),
-                        Map.entry("taskId", entity.taskId), Map.entry("facts", entity.facts),
-                        Map.entry("canBeTakenIntoConsideration", entity.canBeTakenIntoConsideration),
-                        Map.entry("outputs", entity.outputs), Map.entry("resolvedInputs", entity.resolvedInputs),
-                        Map.entry("policyVersion", entity.policyVersion), Map.entry("engineVersion", entity.engineVersion),
-                        Map.entry("schemaVersion", entity.schemaVersion), Map.entry("regulationHash", entity.regulationHash),
-                        Map.entry("effectiveDate", entity.effectiveDate),
-                        Map.entry("evaluatedAt", entity.evaluatedAt.toString())))
-                .toList();
+        assessments.migrate(caseId);
+        return DomainCalls.call(()->assessments.api().listPolicyEvaluations(caseId)).stream()
+                .map(value -> assessments.mapper().convertValue(value, new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>(){})).toList();
     }
+
 }

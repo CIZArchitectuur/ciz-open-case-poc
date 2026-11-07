@@ -1,23 +1,6 @@
 import type { components } from './generated/case-api';
 
-export type CreateCasePayload = {
-  applicantId: string;
-  clientName: string;
-  lastName: string;
-  initials: string;
-  citizenServiceNumber: string;
-  birthDate: string;
-  street: string;
-  houseNumber: string;
-  postalCode: string;
-  city: string;
-  country: string;
-  permanentCareNeed: boolean;
-  permanentSupervision: boolean;
-  applicantRole: 'client' | 'gemachtigde' | 'wettelijk_vertegenwoordiger';
-  signedBy: 'client' | 'gemachtigde' | 'gevolmachtigde_of_wettelijk_vertegenwoordiger' | 'niemand' | 'anders';
-  authorizationSignedByClient: boolean | null;
-};
+export type CreateCasePayload = components['schemas']['CreateCaseRequest'];
 
 export type Decision = components['schemas']['Decision'];
 export type Case = components['schemas']['Case'];
@@ -56,13 +39,7 @@ export type AddressValidationResult = {
 export type FactValue = boolean | string | number;
 export type IntakeFacts = Record<string, FactValue>;
 
-export type IntakeField = {
-  factId: string;
-  type: 'boolean' | 'string' | 'number' | 'date';
-  required: boolean;
-  label: string;
-  description?: string | null;
-};
+export type IntakeField = components['schemas']['IntakeField'];
 
 export type IntakeForm = {
   formId: string;

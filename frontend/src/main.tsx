@@ -1,5 +1,9 @@
-import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { DocumentExtractionPanel } from './DocumentExtractionPanel';
+import { DossierAnalysisPanel } from './DossierAnalysisPanel';
+import { SourceViewer } from './SourceViewer';
+import { getCases, createCaseDraft, submitCase } from './api';
 import { completeTask, createCase, downloadCaseDocument, getCase, getCaseDocuments, getCaseMedicalAssessments, getCasePolicyEvaluations, getCaseStatus, getCaseTasks, getPersonCases, getTaskIntakeForm, getTaskMedicalAssessmentForm, getTasks, provideApplicantSupplement, uploadCaseDocument, validateAddress } from './api';
 import { AuthProvider, useAuth } from './auth';
 import type { AddressValidationResult, Case, CaseDocument, CaseTask, CreateCasePayload, FactValue, IntakeFacts, IntakeField, MedicalAssessment, PolicyEvaluation, TaskCompletionInput, TaskType, WorkItem } from './types';
@@ -20,14 +24,16 @@ const initialForm: CreateCasePayload = {
   permanentCareNeed: false,
   permanentSupervision: false,
   applicantRole: 'client',
+  submissionChannel: 'CLIENT_PORTAL',
   signedBy: 'client',
   authorizationSignedByClient: null
 };
 
 const routes = [
   { path: '/aanvrager', label: 'Aanvrager' },
-  { path: '/beoordelaar', label: 'Beoordelaar' },
-  { path: '/ciz-medewerker', label: 'CIZ-medewerker' }
+  { path: '/zorgaanbieder', label: 'Zorgaanbieder' },
+  { path: '/beoordelaar', label: 'Onderzoeker' },
+  { path: '/ciz-medewerker', label: 'AO · Upload' }
 ];
 
 const applicationSteps = ['Persoonlijk', 'Adres', 'Zorgvraag', 'Ondertekening', 'Controleren'];
@@ -38,6 +44,7 @@ function errorMessage(value: unknown) {
 
 function applicantStatus(tasks: CaseTask[], projectedStatus?: Case['application']['applicantStatus']) {
   const labels: Record<NonNullable<Case['application']['applicantStatus']>, string> = {
+    DRAFT: 'Nog niet ingediend',
     WAITING_FOR_REGISTRATION: 'In registratie',
     WAITING_FOR_DOCUMENTS: 'Aanvulling nodig',
     WAITING_FOR_TRIAGE: 'Wacht op triage',
@@ -74,6 +81,7 @@ function CaseDetails({ value }: { value: Case }) {
     <dt>Zorgbehoefte</dt><dd>{value.application.permanentCareNeed ? 'Blijvend' : 'Niet blijvend'}</dd>
     <dt>Permanent toezicht</dt><dd>{value.application.permanentSupervision ? 'Ja' : 'Nee'}</dd>
     <dt>Ingediend door</dt><dd>{labelForOutput(value.application.applicantRole)}</dd>
+    <dt>Ontvangst</dt><dd>{({CLIENT_PORTAL:'Cliëntportaal',CARE_PROVIDER:'Zorgaanbieder',POST:'Post'})[value.application.submissionChannel]}</dd>
     <dt>Ondertekend door</dt><dd>{labelForOutput(value.application.signedBy)}</dd>
   </dl>;
 }
@@ -84,7 +92,7 @@ function formatSize(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function DocumentList({ caseId, documents }: { caseId: string; documents: CaseDocument[] }) {
+function DocumentList({ caseId, documents, canExtract = false }: { caseId: string; documents: CaseDocument[]; canExtract?: boolean }) {
   const [downloadError, setDownloadError] = useState('');
   if (documents.length === 0) return <p className="document-empty">Nog geen aanvullende documenten.</p>;
   async function download(document: CaseDocument) {
@@ -105,20 +113,29 @@ function DocumentList({ caseId, documents }: { caseId: string; documents: CaseDo
     {documents.map(document => <li key={document.documentId}>
       <div><strong>{document.fileName}</strong><span>{formatSize(document.size)} · veilig opgeslagen</span></div>
       <button className="text-link-button" onClick={() => void download(document)}>Downloaden</button>
+      {canExtract && document.contentType==='application/pdf' && <SourceViewer caseId={caseId} documentId={document.documentId} title={document.fileName} />}
+      {document.contentType === 'application/pdf' && <DocumentExtractionPanel caseId={caseId} documentId={document.documentId} canExtract={canExtract} />}
     </li>)}
     {downloadError && <li role="alert" className="error">{downloadError}</li>}
   </ul>;
 }
 
-function ApplicantPage() {
+function ApplicantPage({postIntake=false, careProvider=false}: {postIntake?: boolean; careProvider?: boolean}) {
+  const submissionChannel = postIntake ? 'POST' : careProvider ? 'CARE_PROVIDER' : 'CLIENT_PORTAL';
+  const portalPath = careProvider ? '/zorgaanbieder' : '/aanvrager';
   const queryId = new URLSearchParams(window.location.search).get('caseId') ?? '';
   const rememberedId = queryId || window.localStorage.getItem('ciz-last-case-id') || '';
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState<CreateCasePayload>({...initialForm, submissionChannel});
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<Set<File>>(new Set());
   const [lookupId, setLookupId] = useState(rememberedId);
   const [currentCase, setCurrentCase] = useState<Case | null>(null);
   const [personCases, setPersonCases] = useState<Case[]>([]);
   const [tasks, setTasks] = useState<CaseTask[]>([]);
   const [supplementResponse, setSupplementResponse] = useState('');
+  const [supplementAttachments, setSupplementAttachments] = useState<File[]>([]);
+  const [uploadedSupplements, setUploadedSupplements] = useState<Set<File>>(new Set());
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [applicationStep, setApplicationStep] = useState(0);
@@ -131,12 +148,22 @@ function ApplicantPage() {
     try {
       const [found, foundTasks] = await Promise.all([getCase(caseId), getCaseTasks(caseId)]);
       setCurrentCase(found);
+      if (!postIntake && found.application.submittedAt === null) {
+        setDraftId(found.caseId); setApplicationStep(4);
+        setForm({applicantId:found.application.applicantId,clientName:found.person.clientName,
+          lastName:found.person.lastName,initials:found.person.initials,citizenServiceNumber:found.person.citizenServiceNumber,
+          birthDate:found.person.birthDate,street:found.address.street,houseNumber:found.address.houseNumber,
+          postalCode:found.address.postalCode,city:found.address.city,country:found.address.country,
+          permanentCareNeed:found.application.permanentCareNeed,permanentSupervision:found.application.permanentSupervision,
+          applicantRole:found.application.applicantRole,submissionChannel:found.application.submissionChannel,
+          signedBy:found.application.signedBy,authorizationSignedByClient:found.application.authorizationSignedByClient});
+      }
       setPersonCases(await getPersonCases(found.personId));
       setTasks(foundTasks);
       setLookupId(found.caseId);
       window.localStorage.setItem('ciz-last-case-id', found.caseId);
       if (updateUrl) {
-        window.history.replaceState(null, '', `/aanvrager?caseId=${encodeURIComponent(found.caseId)}`);
+        if (!postIntake) window.history.replaceState(null, '', `${portalPath}?caseId=${encodeURIComponent(found.caseId)}`);
       }
     } catch (caught) {
       setCurrentCase(null);
@@ -146,7 +173,7 @@ function ApplicantPage() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [postIntake, portalPath]);
 
   useEffect(() => {
     if (rememberedId) void openCase(rememberedId, Boolean(queryId));
@@ -175,8 +202,21 @@ function ApplicantPage() {
     setBusy(true);
     setError('');
     try {
-      const created = await createCase(form);
-      setForm(initialForm);
+      const created = postIntake ? await createCase(form) : draftId ? await getCase(draftId) : await createCaseDraft(form);
+      setDraftId(created.caseId);
+      if (!postIntake) {
+        window.localStorage.setItem('ciz-last-case-id',created.caseId);
+        window.history.replaceState(null,'',`${portalPath}?caseId=${encodeURIComponent(created.caseId)}`);
+      }
+      for (const file of attachments) {
+        if (uploadedFiles.has(file)) continue;
+        await uploadCaseDocument(created.caseId, file);
+        uploadedFiles.add(file);
+        setUploadedFiles(new Set(uploadedFiles));
+      }
+      if (!postIntake) await submitCase(created.caseId);
+      setForm({...initialForm, submissionChannel});
+      setAttachments([]); setDraftId(null); setUploadedFiles(new Set());
       setApplicationStep(0);
       await openCase(created.caseId);
     } catch (caught) {
@@ -190,8 +230,14 @@ function ApplicantPage() {
     setBusy(true);
     setError('');
     try {
+      for (const file of supplementAttachments) {
+        if (uploadedSupplements.has(file)) continue;
+        await uploadCaseDocument(supplementTask.caseId, file);
+        uploadedSupplements.add(file); setUploadedSupplements(new Set(uploadedSupplements));
+      }
       await provideApplicantSupplement(supplementTask.caseId, supplementResponse);
       setSupplementResponse('');
+      setSupplementAttachments([]); setUploadedSupplements(new Set());
       await openCase(supplementTask.caseId, false);
     } catch (caught) {
       setError(errorMessage(caught));
@@ -240,7 +286,7 @@ function ApplicantPage() {
 
   return <div className="page-grid">
     <section>
-      <span className="section-kicker">Burgerportaal</span>
+      <span className="section-kicker">{postIntake ? 'Postaanvraag registreren' : careProvider ? 'Zorgaanbiedersportaal' : 'Burgerportaal'}</span>
       <h2>Nieuwe Wlz-aanvraag</h2>
       <p className="intro">Vul de aanvraag in vijf korte stappen in. U controleert alles voordat u indient.</p>
       <ol className="application-steps" aria-label="Stappen van de aanvraag">
@@ -251,6 +297,7 @@ function ApplicantPage() {
       <form onSubmit={submitApplication}>
         {applicationStep === 0 && <div className="application-step-panel">
           <h3>Persoonlijke gegevens</h3>
+          <p>{postIntake ? 'Per post ontvangen aanvraag.' : careProvider ? 'U dient deze aanvraag als zorgaanbieder in voor de cliënt.' : 'U dient deze aanvraag zelf in.'}</p>
           <p>Gegevens van de persoon die langdurige zorg nodig heeft.</p>
           <label>Aanvrager-ID<input required maxLength={100} value={form.applicantId} onChange={event => setForm({...form, applicantId: event.target.value})} /><small>Dit is de aanvrager van deze aanvraag. Eén cliënt kan meerdere zaken hebben.</small></label>
           <label>Volledige naam<input required maxLength={200} value={form.clientName} onChange={event => setForm({...form, clientName: event.target.value})} /></label>
@@ -334,12 +381,17 @@ function ApplicantPage() {
               onChange={event => setForm({...form, authorizationSignedByClient: event.target.value === '' ? null : event.target.value === 'true'})}>
               <option value="">Maak een keuze</option><option value="true">Ja</option><option value="false">Nee</option>
             </select>
-            <small>Dit is een verklaring bij de aanvraag. Een CIZ-medewerker controleert het bewijsstuk.</small>
+            <small>Dit is een verklaring bij de aanvraag. Een onderzoeker controleert het bewijsstuk.</small>
           </label>}
           {form.applicantRole !== 'client' && <div className="privacy-note">Een medewerker beoordeelt op basis van RegelRecht welke machtiging of vertegenwoordiging moet worden aangetoond.</div>}
         </div>}
         {applicationStep === 4 && <div className="application-step-panel review-application">
           <h3>Controleer uw aanvraag</h3><p>Controleer de gegevens voordat u de aanvraag indient.</p>
+          {!postIntake && <label>Bijlagen toevoegen<input type="file" accept="application/pdf,image/jpeg,image/png" multiple disabled={Boolean(draftId)} onChange={event => setAttachments(Array.from(event.target.files ?? []))} />
+            <small>PDF's worden bij ontvangst uitgelezen. Na indiening wordt het dossier geanalyseerd zodra de benodigde documenten klaar zijn.</small>
+          </label>}
+          {attachments.length > 0 && <ul>{attachments.map((file, index) => <li key={index}>{file.name}</li>)}</ul>}
+          {draftId && <p role="status">Concept {draftId.slice(0,8)} is opgeslagen. Probeer indiening opnieuw om verder te gaan met dezelfde aanvraag.</p>}
           <dl>
             <dt>Naam</dt><dd>{form.clientName} ({form.initials} {form.lastName})</dd>
             <dt>Geboortedatum</dt><dd>{form.birthDate}</dd>
@@ -353,7 +405,7 @@ function ApplicantPage() {
           <div className="privacy-note">Na indiening worden de aanwezigheid van de persoonsgegevens en het adres automatisch aan de RegelRecht-controle doorgegeven.</div>
         </div>}
         <div className="wizard-actions">
-          {applicationStep > 0 && <button type="button" className="secondary" onClick={() => setApplicationStep(step => step - 1)}>Vorige</button>}
+          {applicationStep > 0 && <button type="button" className="secondary" disabled={Boolean(draftId)} onClick={() => setApplicationStep(step => step - 1)}>Vorige</button>}
           {applicationStep < applicationSteps.length - 1
             ? <button key="next" type="button" disabled={!stepComplete} onClick={event => {
               event.preventDefault();
@@ -382,7 +434,7 @@ function ApplicantPage() {
           <h4>Andere zaken van deze cliënt</h4>
           <ul>{personCases.filter(item => item.caseId !== currentCase.caseId).map(item => <li key={item.caseId}>
             <a href={`/aanvrager?caseId=${encodeURIComponent(item.caseId)}`}>Zaak {item.caseId.slice(0, 8)}</a>
-            <span>Ingediend op {new Date(item.application.submittedAt).toLocaleDateString('nl-NL')}</span>
+            <span>{item.application.submittedAt ? `Ingediend op ${new Date(item.application.submittedAt).toLocaleDateString('nl-NL')}` : 'Conceptaanvraag'}</span>
           </li>)}</ul>
         </div>}
         <ol className="progress five-steps" aria-label="Voortgang aanvraag">
@@ -403,6 +455,7 @@ function ApplicantPage() {
             <textarea required maxLength={4000} rows={5} value={supplementResponse}
               onChange={event => setSupplementResponse(event.target.value)} />
           </label>
+          <label>Bijlagen bij uw aanvulling<input type="file" multiple accept="application/pdf,image/jpeg,image/png" onChange={event => setSupplementAttachments(Array.from(event.target.files ?? []))} /></label>
           <button disabled={busy || !supplementResponse.trim()}>{busy ? 'Versturen…' : 'Aanvulling versturen'}</button>
         </form>}
         {currentCase.decisions.filter(decision => decision.sentAt).map(decision => <div className="decision-result" key={decision.decisionId}>
@@ -487,27 +540,6 @@ function attentionFor(field: IntakeField, value: FactValue, missing: Set<string>
   return undefined;
 }
 
-const personalIntakeFacts = new Set([
-  'achternaam_aanwezig', 'voorletters_aanwezig', 'bsn_aanwezig', 'geboortedatum_aanwezig',
-  'straat_aanwezig', 'huisnummer_aanwezig', 'postcode_aanwezig', 'woonplaats_aanwezig',
-  'land_aanwezig', 'land_anders_aanwezig'
-]);
-const signingFacts = new Set([
-  'aanvraag_vanuit_kloostergemeenschap', 'acute_zorgvraag_ondertekenen_niet_mogelijk',
-  'bevestiging_aanvraag_wettelijke_vertegenwoordiging_aanwezig',
-  'blijvende_fysieke_onmogelijkheid_ondertekenen', 'eerste_bron_client_kan_overzien',
-  'eerste_bron_machtiging_overzien', 'heeft_gemachtigde_wlz_aanvraag_ondertekend',
-  'heeft_gevolmachtigde_wlz_aanvraag_ondertekend', 'indicatiesteller_zeker_client_kan_overzien',
-  'indicatiesteller_zeker_machtiging_overzien', 'levenstestament_volmacht_of_beschikking_aanwezig',
-  'machtigingsformulier_aanwezig', 'rechterlijke_machtiging_of_ibs_aanwezig',
-  'tweede_bron_client_kan_overzien', 'tweede_bron_machtiging_overzien', 'wie_ondertekend',
-  'wie_ondertekende_machtigingsformulier'
-]);
-const insuranceFacts = new Set([
-  'dagtekening_aanvraag_aanwezig', 'gewenste_zorg_aanwezig', 'naam_zorgverzekeraar',
-  'polisnummer_aanwezig', 'uitzondering_op_verzekering'
-]);
-
 const friendlyFieldLabels: Record<string, string> = {
   indicatiesteller_zeker_client_kan_overzien: 'Kan de cliënt overzien waarvoor die tekent?',
   eerste_bron_client_kan_overzien: 'Bevestiging door een eerste onafhankelijke bron',
@@ -532,23 +564,16 @@ function friendlyFieldLabel(field: IntakeField) {
   return friendlyFieldLabels[field.factId] ?? field.label;
 }
 
-function groupedPolicyFields(fields: IntakeField[], medical: boolean) {
-  const definitions = medical ? [
-    { title: 'Medische onderbouwing', description: 'Diagnose, behandeling, prognose en de blijvende zorgbehoefte.', matches: (id: string) => ['diagnose_vastgesteld', 'diagnose_door_ter_zake_kundige', 'behandeling_en_effect_beschreven', 'prognose_beschreven', 'blijvende_zorgbehoefte_onderbouwd'].includes(id) },
-    { title: 'Benodigde zorg', description: 'De intensiteit en voortdurende beschikbaarheid van zorg.', matches: (id: string) => ['permanent_toezicht_nodig', 'vierentwintig_uurs_zorg_nabij_nodig'].includes(id) },
-    { title: 'Advies en motivering', description: 'Eventueel medisch advies en de onderbouwing van het oordeel.', matches: (_id: string) => true }
-  ] : [
-    { title: 'Persoonsgegevens', description: 'Gegevens uit de ingediende aanvraag worden automatisch overgenomen.', matches: (id: string) => personalIntakeFacts.has(id) },
-    { title: 'Ondertekening en vertegenwoordiging', description: 'Wie mag ondertekenen en welke machtiging of vertegenwoordiging is aangetoond.', matches: (id: string) => signingFacts.has(id) },
-    { title: 'Medische informatie en deskundige', description: 'Aanwezigheid, herkomst en deskundigheid van de medische informatie.', matches: (id: string) => !insuranceFacts.has(id) },
-    { title: 'Aanvraag en verzekering', description: 'De gevraagde zorg, dagtekening en verzekeringsgegevens.', matches: (_id: string) => true }
-  ];
-  const remaining = [...fields];
-  return definitions.map(definition => {
-    const selected = remaining.filter(field => definition.matches(field.factId));
-    selected.forEach(field => remaining.splice(remaining.indexOf(field), 1));
-    return { ...definition, fields: selected };
-  }).filter(group => group.fields.length > 0);
+function groupedPolicyFields(fields: IntakeField[], _medical: boolean) {
+  const groups = new Map<string, {title: string; description: string; order: number; fields: IntakeField[]}>();
+  for (const field of fields) {
+    const id = field.groupId ?? 'other';
+    const group = groups.get(id) ?? {title: field.groupTitle ?? 'Overige controles',
+      description: field.groupDescription ?? '', order: field.groupOrder ?? 999, fields: []};
+    group.fields.push(field);
+    groups.set(id, group);
+  }
+  return [...groups.values()].sort((left, right) => left.order - right.order);
 }
 
 function PolicyOutcome({ value, compact = false, form }: { value: PolicyEvaluation; compact?: boolean; form?: WorkItem['intakeForm'] }) {
@@ -703,6 +728,9 @@ function factsForSubmission(item: WorkItem, facts: IntakeFacts | undefined) {
 }
 
 function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: QueueMode; onWorkflowChange?: () => void }) {
+  const loadVersion = useRef(0);
+  const [selectedId,setSelectedId]=useState('');
+  const [search,setSearch]=useState('');
   const [items, setItems] = useState<WorkItem[]>([]);
   const [error, setError] = useState('');
   const [busyTask, setBusyTask] = useState('');
@@ -713,6 +741,7 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
   const [completionByTask, setCompletionByTask] = useState<Record<string, TaskCompletionInput>>({});
 
   const load = useCallback(async () => {
+    const version = ++loadVersion.current;
     setLoading(true);
     setError('');
     try {
@@ -720,14 +749,16 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
       const loadedItems = await Promise.all(tasks.map(async task => {
         const [caseValue, documents, policyEvaluations, medicalAssessments, intakeForm] = await Promise.all([
           getCase(task.caseId),
-          getCaseDocuments(task.caseId),
-          getCasePolicyEvaluations(task.caseId),
-          getCaseMedicalAssessments(task.caseId),
-          mode === 'investigation' ? getTaskMedicalAssessmentForm(task.taskId)
+          task.taskId === selectedId ? getCaseDocuments(task.caseId) : Promise.resolve([]),
+          task.taskId === selectedId ? getCasePolicyEvaluations(task.caseId) : Promise.resolve([]),
+          task.taskId === selectedId ? getCaseMedicalAssessments(task.caseId) : Promise.resolve([]),
+          task.taskId !== selectedId ? Promise.resolve(undefined)
+            : mode === 'investigation' ? getTaskMedicalAssessmentForm(task.taskId)
             : mode === 'registration' ? getTaskIntakeForm(task.taskId) : Promise.resolve(undefined)
         ]);
         return { ...task, case: caseValue, documents, policyEvaluations, medicalAssessments, intakeForm };
       }));
+      if (version !== loadVersion.current) return;
       setItems(loadedItems);
       setFactsByTask(current => {
         const next = { ...current };
@@ -749,13 +780,21 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
         return next;
       });
     } catch (caught) {
-      setError(errorMessage(caught));
+      if (version === loadVersion.current) setError(errorMessage(caught));
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
-  }, [type, mode]);
+  }, [type, mode, selectedId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Workflow creation is asynchronous; keep an idle overview current without
+  // replacing an open dossier or unsaved answers.
+  useEffect(() => {
+    if (selectedId) return;
+    const timer = window.setInterval(() => { void load(); }, 5000);
+    return () => window.clearInterval(timer);
+  }, [load, selectedId]);
 
   async function finish(item: WorkItem) {
     setBusyTask(item.taskId);
@@ -822,11 +861,11 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
   const triage = mode === 'triage';
   const investigation = mode === 'investigation';
   const reviewer = triage || investigation;
-  const canUpload = !reviewer;
+  const canUpload = false;
   return <section className="queue-section">
     <div className="queue-heading">
       <div>
-        <span className="section-kicker">{reviewer ? 'WP-Wlz · Beoordelaarsportaal' : 'WP-AO · CIZ-medewerker'}</span>
+        <span className="section-kicker">Onderzoeker · Wlz-dossier</span>
         <h2>{registration ? 'Registreren en controleren' : supplementRequest ? 'Aanvulling opvragen' : triage ? 'Aanvragen triëren' : investigation ? 'Onderzoek en besluitvorming Wlz' : 'Beslissing verzenden'}</h2>
         <p className="intro">{registration
           ? 'Controleer de aanvraaggegevens en de uitkomst van de RegelRecht-toets. Kies daarna de registratieroute.'
@@ -843,24 +882,109 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
     {error && <div className="error" role="alert">{error}</div>}
     {loading && <p className="empty">Werkvoorraad laden…</p>}
     {!loading && items.length === 0 && <div className="empty"><strong>Geen openstaande taken</strong><span>De werkvoorraad is bijgewerkt.</span></div>}
+    {!selectedId && items.length>0 && <div className="dossier-overview">
+      <label>Dossier zoeken<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Naam of zaak-ID" /></label>
+      <table><thead><tr><th>Zaak</th><th>Cliënt</th><th>Ontvangst</th><th>Actie</th></tr></thead><tbody>
+        {items.filter(item=>`${item.caseId} ${item.case.person.clientName}`.toLowerCase().includes(search.toLowerCase())).map(item=><tr key={item.taskId}>
+          <td>{item.caseId.slice(0,8)}</td><td>{item.case.person.clientName}</td><td>{({CLIENT_PORTAL:'Cliënt',CARE_PROVIDER:'Zorgaanbieder',POST:'Post'})[item.case.application.submissionChannel]}</td>
+          <td><button className="secondary" onClick={()=>setSelectedId(item.taskId)}>Open dossier {item.case.person.clientName}</button></td>
+        </tr>)}
+      </tbody></table>
+    </div>}
+    {selectedId && <button className="secondary" onClick={()=>setSelectedId('')}>Terug naar dossieroverzicht</button>}
     <div className={`work-list ${registration || reviewer ? 'intake-work-list' : ''}`}>
-      {items.map(item => {
+      {items.filter(item=>!loading && item.taskId===selectedId).map(item => {
         const latestEvaluation = item.policyEvaluations.at(-1);
         const missing = missingFactIds(latestEvaluation);
         const currentFacts = factsByTask[item.taskId] ?? {};
         const automaticApplicantFacts = applicantFacts(item.case);
-        return <article className="work-card" key={item.taskId}>
+        const selectedTriageOutcome = completionByTask[item.taskId]?.triageOutcome;
+        return <article className={`work-card ${triage ? 'triage-work-card' : ''}`} key={item.taskId}>
         <div className="work-card-header">
           <div><span className="muted">Zaak {item.caseId.slice(0, 8)}</span><h3>{item.case.person.clientName}</h3></div>
           <span className="status">Open</span>
         </div>
-        <CaseDetails value={item.case} />
+        <div className={`dossier-layout ${triage ? 'triage-workspace' : ''} ${investigation ? 'assessment-workspace' : ''}`}>
+          <aside className="dossier-sidebar">
+            <h4>{triage || investigation ? 'Dossiercontext' : 'Cliënt en contact'}</h4><CaseDetails value={item.case} />
+            {triage && <>
+              <div className="triage-sidebar-status">
+                <span className="triage-sidebar-label">Aanvraagstatus</span>
+                <strong>{applicantStatus([], item.case.application.applicantStatus)}</strong>
+              </div>
+              <nav className="triage-section-nav" aria-label="Navigatie in dossier">
+                <span className="triage-sidebar-label">In dit dossier</span>
+                <a href={`#triage-summary-${item.taskId}`}>Aanvraag</a>
+                <a href={`#triage-documents-${item.taskId}`}>Documenten</a>
+                <a href={`#triage-analysis-${item.taskId}`}>Analyse en broncontrole</a>
+                <a href={`#triage-policy-${item.taskId}`}>Beleidsuitkomst</a>
+                <a href={`#triage-route-${item.taskId}`}>Behandelroute</a>
+              </nav>
+            </>}
+            {investigation && <>
+              <div className="triage-sidebar-status">
+                <span className="triage-sidebar-label">Aanvraagstatus</span>
+                <strong>{applicantStatus([], item.case.application.applicantStatus)}</strong>
+              </div>
+              <nav className="triage-section-nav assessment-section-nav" aria-label="Navigatie in beoordeling">
+                <span className="triage-sidebar-label">Beoordeling</span>
+                <a href={`#assessment-documents-${item.taskId}`}>Documenten en OCR</a>
+                <a href={`#assessment-analysis-${item.taskId}`}>Cliëntbeeld en beperkingen</a>
+                <a href={`#assessment-policy-${item.taskId}`}>Beleidscontrole</a>
+                <a href={`#assessment-decision-${item.taskId}`}>Besluit vastleggen</a>
+              </nav>
+            </>}
+          </aside>
+          <div className={`dossier-content ${triage ? 'triage-main' : ''}`}>
+        {triage && <div className="triage-process-strip" aria-label="Procesvoortgang">
+          <div className="triage-process-step complete"><span>1</span><strong>Aanvraag ontvangen</strong></div>
+          <div className="triage-process-step complete"><span>2</span><strong>Registratie gecontroleerd</strong></div>
+          <div className="triage-process-step active"><span>3</span><strong>Triage</strong></div>
+          <div className="triage-process-step"><span>4</span><strong>{selectedTriageOutcome === 'FURTHER_INVESTIGATION' ? 'Nader onderzoek' : selectedTriageOutcome ? 'Beslissing verzenden' : 'Vervolg na triage'}</strong></div>
+        </div>}
+        <details id={triage ? `triage-summary-${item.taskId}` : undefined} className={`dossier-section ${triage ? 'triage-card' : ''}`} open={registration || triage}>
+          <summary>{triage ? 'Aanvraag en context' : 'Aanvraag'}</summary>
+          <p>{item.case.application.submittedAt ? `Ontvangen op ${new Date(item.case.application.submittedAt).toLocaleDateString('nl-NL')}` : 'Conceptaanvraag'} · {applicantStatus([],item.case.application.applicantStatus)}</p>
+        {triage && <dl className="triage-application-facts">
+          <div><dt>Ingediend door</dt><dd>{({client:'Cliënt',gemachtigde:'Gemachtigde',wettelijk_vertegenwoordiger:'Wettelijk vertegenwoordiger'})[item.case.application.applicantRole]}</dd></div>
+          <div><dt>Ondertekend door</dt><dd>{({client:'Cliënt',gemachtigde:'Gemachtigde',gevolmachtigde_of_wettelijk_vertegenwoordiger:'Gevolmachtigde of wettelijk vertegenwoordiger',niemand:'Niemand',anders:'Anders'})[item.case.application.signedBy]}</dd></div>
+          <div><dt>Blijvende zorgbehoefte</dt><dd>{item.case.application.permanentCareNeed ? 'Ja' : 'Nee'}</dd></div>
+          <div><dt>Permanent toezicht</dt><dd>{item.case.application.permanentSupervision ? 'Ja' : 'Nee'}</dd></div>
+          <div><dt>Ingediend via</dt><dd>{({CLIENT_PORTAL:'Cliëntportaal',CARE_PROVIDER:'Zorgaanbieder',POST:'Post'})[item.case.application.submissionChannel]}</dd></div>
+        </dl>}
         {registration && item.case.application.supplementResponse && <div className="attention-help">
           <strong>Aanvulling van de aanvrager ontvangen</strong>
           <span>{item.case.application.supplementResponse}</span>
         </div>}
         {registration && latestEvaluation && <PolicyOutcome value={latestEvaluation} form={item.intakeForm} />}
-        {(investigation || registration) && item.intakeForm && <fieldset className="policy-checks">
+        </details>
+        {investigation ? <div className="assessment-review-layout">
+          <section id={`assessment-documents-${item.taskId}`} className="assessment-source-column" aria-label="Documenten en OCR">
+            <div className="assessment-panel-heading"><span>Bronnen</span><h4>Documenten en uitlezing</h4><p>Bekijk de originele stukken en controleer de herkende tekst voordat u bevindingen beoordeelt.</p></div>
+            <DocumentList caseId={item.caseId} documents={item.documents} canExtract />
+            <p className="muted">AO voegt ontvangen documenten toe. De onderzoeker controleert de inhoud.</p>
+          </section>
+          <div id={`assessment-analysis-${item.taskId}`} className="assessment-findings-column">
+            <DossierAnalysisPanel caseId={item.caseId} documents={item.documents} />
+          </div>
+        </div> : <>
+          <details id={triage ? `triage-documents-${item.taskId}` : undefined} className={`dossier-section ${triage ? 'triage-card' : ''}`} open><summary>Documenten</summary>
+            <DocumentList caseId={item.caseId} documents={item.documents} canExtract />
+            <p className="muted">AO voegt ontvangen documenten toe. De Onderzoeker controleert de inhoud.</p>
+          </details>
+          <div id={triage ? `triage-analysis-${item.taskId}` : undefined} className={triage ? 'triage-analysis-card' : ''}>
+            <DossierAnalysisPanel caseId={item.caseId} documents={item.documents} />
+          </div>
+        </>}
+        {triage && <details id={`triage-policy-${item.taskId}`} className="dossier-section triage-card" open>
+          <summary>Beleidsuitkomst</summary>
+          {latestEvaluation
+            ? <PolicyOutcome value={latestEvaluation} />
+            : <p className="triage-empty-state">Er is nog geen beleidsuitkomst beschikbaar. Dit scherm voegt zelf geen beleidsregels toe.</p>}
+        </details>}
+        <details id={triage ? `triage-route-${item.taskId}` : investigation ? `assessment-decision-${item.taskId}` : undefined} className={`dossier-section ${triage ? 'triage-card triage-route-card' : ''}`} open>
+        <summary>{triage ? 'Behandelroute' : 'Beoordeling en besluit'}</summary>
+        {(investigation || registration) && item.intakeForm && <fieldset id={investigation ? `assessment-policy-${item.taskId}` : undefined} className="policy-checks">
           <legend>{investigation ? 'Medisch-inhoudelijke beoordeling' : 'Controle volgens actueel beleid'}</legend>
           <div className="policy-version">Formulier uit RegelRecht-beleid · versie {item.intakeForm.policyVersion.slice(0, 12)}</div>
           {investigation && <div className="attention-help medical">
@@ -868,8 +992,10 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
             <span>RegelRecht ondersteunt het besluitvoorstel. De beoordelaar blijft verantwoordelijk voor de vastgelegde medische bevindingen en motivering.</span>
           </div>}
           <div className="policy-groups">
-            {groupedPolicyFields(item.intakeForm.fields, investigation).map(group => <div className="policy-group" key={group.title}>
-              <div className="policy-group-heading"><h4>{group.title}</h4><p>{group.description}</p></div>
+            {groupedPolicyFields(item.intakeForm.fields, investigation).map(group => <details className="policy-group" key={group.title}>
+              <summary className="policy-group-heading"><span><strong>{group.title}</strong><span className="policy-group-description">{group.description}</span></span>
+                <span className="policy-group-count">{group.fields.filter(field => currentFacts[field.factId] !== undefined && currentFacts[field.factId] !== '').length}/{group.fields.length} ingevuld</span>
+              </summary>
               <div className="policy-fields">
                 {group.fields.map(field => {
                   const automatic = registration && applicantFactIds.has(field.factId) && automaticApplicantFacts[field.factId] === true;
@@ -888,7 +1014,7 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
                     }))} />;
                 })}
               </div>
-            </div>)}
+            </details>)}
           </div>
           <p className="resume-hint">Het formulier én de toets komen uit de vastgelegde wet- en regelgeving. Het scherm bevat zelf geen beslisregels.</p>
         </fieldset>}
@@ -921,19 +1047,23 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
               ...current, [item.taskId]: { ...(current[item.taskId] ?? {}), supplementText: event.target.value }
             }))} />
         </label>}
-        {triage && <>
-          <label className="task-choice">Uitkomst triage
-            <select required value={completionByTask[item.taskId]?.triageOutcome ?? ''}
-              onChange={event => setCompletionByTask(current => ({
-                ...current,
-                [item.taskId]: { ...(current[item.taskId] ?? {}), triageOutcome: event.target.value as TaskCompletionInput['triageOutcome'] }
-              }))}>
-              <option value="">Maak een keuze</option>
-              <option value="FURTHER_INVESTIGATION">Nader onderzoek inplannen</option>
-              <option value="DIRECT_HANDLED">Direct afhandelen (basis)</option>
-              <option value="NOT_TAKEN_INTO_CONSIDERATION">Niet in behandeling nemen</option>
-            </select>
-          </label>
+        {triage && <fieldset className="triage-route-picker">
+          <legend>Kies de behandelroute</legend>
+          <div className="triage-route-options">
+            {[
+              { value: 'FURTHER_INVESTIGATION', title: 'Nader onderzoek inplannen', description: 'De aanvraag gaat naar inhoudelijke behandeling en medische besluitvorming.' },
+              { value: 'DIRECT_HANDLED', title: 'Direct afhandelen', description: 'De aanvraag gaat rechtstreeks naar een beslissing, zonder onderzoekstaak.' },
+              { value: 'NOT_TAKEN_INTO_CONSIDERATION', title: 'Niet in behandeling nemen', description: 'Leg vast waarom de aanvraag niet verder in behandeling wordt genomen.' }
+            ].map(option => <label className={`triage-route-option ${selectedTriageOutcome === option.value ? 'selected' : ''}`} key={option.value}>
+              <input type="radio" name={`triageOutcome-${item.taskId}`} required value={option.value}
+                checked={selectedTriageOutcome === option.value}
+                onChange={() => setCompletionByTask(current => ({
+                  ...current,
+                  [item.taskId]: { ...(current[item.taskId] ?? {}), triageOutcome: option.value as TaskCompletionInput['triageOutcome'] }
+                }))} />
+              <span><strong>{option.title}</strong><small>{option.description}</small></span>
+            </label>)}
+          </div>
           {completionByTask[item.taskId]?.triageOutcome === 'DIRECT_HANDLED' && <label className="task-choice">Uitkomst directe afhandeling
             <select required value={completionByTask[item.taskId]?.decisionResult ?? ''}
               onChange={event => setCompletionByTask(current => ({
@@ -946,13 +1076,25 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
             </select>
           </label>}
           {completionByTask[item.taskId]?.triageOutcome && completionByTask[item.taskId]?.triageOutcome !== 'FURTHER_INVESTIGATION'
-            && <label className="task-choice">Korte toelichting
+            && <label className="task-choice">Toelichting bij de gekozen route
               <textarea rows={3} maxLength={4000} value={completionByTask[item.taskId]?.decisionMotivation ?? ''}
                 onChange={event => setCompletionByTask(current => ({
                   ...current, [item.taskId]: { ...(current[item.taskId] ?? {}), decisionMotivation: event.target.value }
-                }))} />
+              }))} />
             </label>}
-        </>}
+          {selectedTriageOutcome === 'DIRECT_HANDLED' && <div className="triage-decision-details">
+            <label className="task-choice">Zorgprofiel (optioneel)
+              <input maxLength={100} value={completionByTask[item.taskId]?.zorgprofiel ?? ''}
+                onChange={event => setCompletionByTask(current => ({ ...current,
+                  [item.taskId]: { ...(current[item.taskId] ?? {}), zorgprofiel: event.target.value } }))} />
+            </label>
+            <label className="task-choice">Grondslagen (optioneel, één per regel)
+              <textarea rows={3} value={(completionByTask[item.taskId]?.grondslagen ?? []).join('\n')}
+                onChange={event => setCompletionByTask(current => ({ ...current,
+                  [item.taskId]: { ...(current[item.taskId] ?? {}), grondslagen: event.target.value.split('\n') } }))} />
+            </label>
+          </div>}
+        </fieldset>}
         {investigation && <div className="decision-entry">
           <label className="task-choice">Inhoudelijke uitkomst
             <select required value={completionByTask[item.taskId]?.decisionResult ?? ''}
@@ -972,9 +1114,8 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
               }))} />
           </label>
         </div>}
-        <div className="staff-documents">
+        {!triage && <div className="staff-documents">
           <h4>Documenten</h4>
-          <DocumentList caseId={item.caseId} documents={item.documents} />
           {canUpload && <>
             <form className="upload" onSubmit={event => void uploadDocument(event, item)}>
               <label>Ontvangen document
@@ -989,7 +1130,7 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
             </form>
             <p className="resume-hint">PDF, JPEG of PNG, maximaal 10 MB. De processtap verandert niet automatisch.</p>
           </>}
-          {(mode === 'investigation' || (mode === 'triage' && completionByTask[item.taskId]?.triageOutcome === 'DIRECT_HANDLED')) && <>
+          {mode === 'investigation' && <>
             <label>Zorgprofiel (optioneel)
               <input maxLength={100} value={completionByTask[item.taskId]?.zorgprofiel ?? ''}
                 onChange={event => setCompletionByTask(current => ({ ...current,
@@ -1005,7 +1146,8 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
             <h4>{decisionLabel(item.case.decisions.at(-1)?.result)}</h4>
             <p>{item.case.decisions.at(-1)?.motivation}</p>
           </div>}
-        </div>
+        </div>}
+        </details>
         {(() => {
           const input = completionByTask[item.taskId] ?? {};
           const ready = registration
@@ -1033,27 +1175,64 @@ function WorkQueue({ type, mode, onWorkflowChange }: { type: TaskType; mode: Que
             </button>
           </div>;
         })()}
+        </div></div>
       </article>;})}
     </div>
   </section>;
 }
 
 function EmployeePage() {
-  const [revision, setRevision] = useState(0);
-  const refreshQueues = () => setRevision(current => current + 1);
-  return <div className="employee-sections">
-    <WorkQueue key={`registration-${revision}`} type="REGISTRATION_ACCEPTANCE" mode="registration" onWorkflowChange={refreshQueues} />
-    <WorkQueue key={`supplement-${revision}`} type="REQUEST_ADDITIONAL_INFORMATION" mode="supplement-request" onWorkflowChange={refreshQueues} />
-    <WorkQueue key={`outgoing-${revision}`} type="OUTGOING_COMMUNICATION" mode="outgoing" onWorkflowChange={refreshQueues} />
-  </div>;
+  const [cases,setCases]=useState<Case[]>([]);
+  const [selected,setSelected]=useState<Case|null>(null);
+  const [search,setSearch]=useState('');
+  const [documents,setDocuments]=useState<CaseDocument[]>([]);
+  const [file,setFile]=useState<File|null>(null);
+  const [error,setError]=useState('');
+  const [busy,setBusy]=useState(false);
+  useEffect(()=>{ void getCases().then(setCases).catch(e=>setError(errorMessage(e))); },[]);
+  async function open(value: Case) {
+    setSelected(value);setFile(null);setError('');
+    try { setDocuments(await getCaseDocuments(value.caseId)); } catch(e) {setError(errorMessage(e));}
+  }
+  async function upload(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault(); if(!file || !selected) return; setBusy(true);setError('');
+    try { await uploadCaseDocument(selected.caseId,file);setDocuments(await getCaseDocuments(selected.caseId));setFile(null); }
+    catch(e) {setError(errorMessage(e));} finally {setBusy(false);}
+  }
+  return <section className="queue-section"><h2>AO · Documenten uploaden</h2>
+    <p>Selecteer de zaak en voeg het ontvangen document toe. De Onderzoeker voert de controle uit.</p>
+    {error && <p role="alert">{error}</p>}
+    <label>Dossier zoeken<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Naam of zaak-ID" /></label>
+    <div className="dossier-overview"><table><thead><tr><th>Zaak</th><th>Cliënt</th><th>Actie</th></tr></thead><tbody>
+      {cases.filter(c=>`${c.caseId} ${c.person.clientName}`.toLowerCase().includes(search.toLowerCase())).map(c=><tr key={c.caseId}>
+        <td>{c.caseId.slice(0,8)}</td><td>{c.person.clientName}</td><td><button className="secondary" onClick={()=>void open(c)}>Open dossier {c.person.clientName}</button></td>
+      </tr>)}
+    </tbody></table></div>
+    {selected && <article className="upload-card"><h3>{selected.person.clientName}</h3><p>Zaak {selected.caseId}</p>
+      <form className="upload" onSubmit={e=>void upload(e)}><label>Ontvangen document<input type="file" accept="application/pdf,image/jpeg,image/png" required onChange={e=>setFile(e.target.files?.[0]??null)} /></label>
+        <button disabled={busy || !file}>{busy ? 'Uploaden…' : 'Document uploaden'}</button></form>
+      <DocumentList caseId={selected.caseId} documents={documents} />
+    </article>}
+  </section>;
 }
 
 function ReviewerPage() {
   const [revision, setRevision] = useState(0);
+  const [tab,setTab]=useState<QueueMode>('registration');
+  const [post,setPost]=useState(false);
   const refreshQueues = () => setRevision(current => current + 1);
+  const queues: {mode: QueueMode; type: TaskType; label: string}[] = [
+    {mode:'registration',type:'REGISTRATION_ACCEPTANCE',label:'Controle'},
+    {mode:'supplement-request',type:'REQUEST_ADDITIONAL_INFORMATION',label:'Aanvulling'},
+    {mode:'triage',type:'TRIAGE',label:'Triage'},
+    {mode:'investigation',type:'WLZ_INVESTIGATION_DECISION',label:'Onderzoek'},
+    {mode:'outgoing',type:'OUTGOING_COMMUNICATION',label:'Verzending'}
+  ];
   return <div className="employee-sections">
-    <WorkQueue key={`triage-${revision}`} type="TRIAGE" mode="triage" onWorkflowChange={refreshQueues} />
-    <WorkQueue key={`investigation-${revision}`} type="WLZ_INVESTIGATION_DECISION" mode="investigation" onWorkflowChange={refreshQueues} />
+    <div className="researcher-tabs" aria-label="Werkvoorraad Onderzoeker">{queues.map(q=><button className={tab===q.mode && !post?'':'secondary'} key={q.mode} onClick={()=>{setTab(q.mode);setPost(false);}}>{q.label}</button>)}
+      <button className="secondary" onClick={()=>setPost(p=>!p)}>Postaanvraag registreren</button>
+    </div>
+    {post ? <ApplicantPage postIntake /> : queues.filter(q=>q.mode===tab).map(q=><WorkQueue key={`${q.mode}-${revision}`} type={q.type} mode={q.mode} onWorkflowChange={refreshQueues} />)}
   </div>;
 }
 
@@ -1095,14 +1274,14 @@ function App() {
       {auth.user && <button className="header-signout" onClick={() => void auth.signOut()}>Uitloggen</button>}
     </header>
     <main>
-      {path.startsWith('/aanvrager') && <div className="demo-note">Fictieve PoC-aanvrageromgeving — gebruik hier geen echte persoonsgegevens. Deze demo is niet beveiligd met medewerkerslogin.</div>}
-      {path.startsWith('/beoordelaar') && <StaffAccessPage role="beoordelaar" label="Beoordelaar" />}
-      {path.startsWith('/ciz-medewerker') && <StaffAccessPage role="ciz-medewerker" label="CIZ-medewerker" />}
+      {(path.startsWith('/aanvrager') || path.startsWith('/zorgaanbieder')) && <div className="demo-note">Fictieve PoC-aanvrageromgeving — gebruik hier geen echte persoonsgegevens. Deze demo is niet beveiligd met medewerkerslogin.</div>}
+      {path.startsWith('/beoordelaar') && <StaffAccessPage role="beoordelaar" label="Onderzoeker" />}
+      {path.startsWith('/ciz-medewerker') && <StaffAccessPage role="ciz-medewerker" label="AO" />}
       {path.startsWith('/beoordelaar')
         ? auth.hasRole('beoordelaar') && <ReviewerPage />
         : path.startsWith('/ciz-medewerker')
           ? auth.hasRole('ciz-medewerker') && <EmployeePage />
-          : <ApplicantPage />}
+          : <ApplicantPage careProvider={path.startsWith('/zorgaanbieder')} />}
     </main>
   </>;
 }

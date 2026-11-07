@@ -4,7 +4,173 @@ info:
   version: 0.7.0
   description: Contract-first API for fictional Wlz cases, S3-backed documents, and Operaton workflow tasks.
 paths:
+  /cases/{caseId}/bas-runs:
+    get:
+      operationId: listCaseBasRuns
+      summary: Processing history and readiness, without extracted medical content
+      security: [{oidcBearer: []}]
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: BAS processing versions
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: './bas-service.yaml#/components/schemas/BasRun'}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /cases/drafts:
+    post:
+      operationId: createCaseDraft
+      summary: Save a fictional application draft before uploading attachments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateCaseRequest'}
+      responses:
+        '201':
+          description: Draft created; no workflow or BAS analysis started
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Case'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /cases/{caseId}/submit:
+    post:
+      operationId: submitCase
+      summary: Definitively submit a fictional draft and publish its persisted attachments asynchronously
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+        - name: X-Correlation-ID
+          in: header
+          schema: {type: string, maxLength: 100}
+      responses:
+        '200':
+          description: Submitted application durably recorded; workflow and BAS are started asynchronously through Kafka. Retrying submission is idempotent; tasks may not yet exist.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Case'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /cases/{caseId}/impairment-analyses:
+    parameters:
+      - {name: caseId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: startImpairmentAnalysis
+      summary: Onderzoeker starts a background analysis of the current ready PDF dossier
+      security: [{oidcBearer: []}]
+      responses:
+        '202':
+          description: Queued job or current pending analysis
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DossierAnalysis'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: listImpairmentAnalyses
+      summary: Onderzoeker views analysis history and staleness
+      security: [{oidcBearer: []}]
+      responses:
+        '200':
+          description: Most recent first
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/DossierAnalysis'}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /cases/{caseId}/impairment-analyses/{analysisId}/review:
+    post:
+      operationId: reviewImpairmentAnalysis
+      summary: Onderzoeker appends a source-linked human review, never automatic rule facts
+      security: [{oidcBearer: []}]
+      parameters:
+        - {name: caseId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: analysisId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnalysisReview'}
+      responses:
+        '200':
+          description: Reviewed analysis
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DossierAnalysis'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /cases/{caseId}/documents/{documentId}/structuring:
+    parameters:
+      - {name: caseId, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: documentId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: startDocumentStructuring
+      summary: Onderzoeker starts PDF extraction; no facts or BPMN tasks are changed
+      security: [{oidcBearer: []}]
+      responses:
+        '202':
+          description: Accepted or existing processing job
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentExtraction'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: getDocumentStructuring
+      summary: Staff inspect extraction and source references; polling refreshes pending results
+      security: [{oidcBearer: []}]
+      responses:
+        '200':
+          description: Stored extraction
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentExtraction'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /cases/{caseId}/documents/{documentId}/structuring/review:
+    post:
+      operationId: reviewDocumentStructuring
+      summary: Onderzoeker records a reviewed transcription; never automatically supplied to RegelRecht
+      security: [{oidcBearer: []}]
+      parameters:
+        - {name: caseId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: documentId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DocumentReview'}
+      responses:
+        '200':
+          description: Reviewed transcription with audit
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentExtraction'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /cases:
+    get:
+      operationId: listCases
+      summary: Staff dossier overview; most recent 100 fictional cases
+      security: [{oidcBearer: []}]
+      responses:
+        '200':
+          description: Cases
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Case'}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
     post:
       operationId: createCase
       summary: Create a fictional Wlz application
@@ -86,8 +252,7 @@ paths:
     post:
       operationId: addCaseDocument
       summary: Add a document to an existing case
-      security:
-        - oidcBearer: []
+      security: []
       parameters:
         - $ref: '#/components/parameters/CaseId'
         - name: X-Document-File-Name
@@ -381,12 +546,64 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    DossierAnalysis:
+      type: object
+      required: [analysisId, caseId, createdAt, status, stale, documentIds, reviews]
+      properties:
+        analysisId: {type: string, format: uuid}
+        caseId: {type: string, format: uuid}
+        createdAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time, nullable: true}
+        status: {type: string, enum: [QUEUED, PROCESSING, READY, FAILED]}
+        stale: {type: boolean}
+        errorCode: {type: string, nullable: true, enum: [UNAVAILABLE, INTERRUPTED]}
+        documentIds: {type: array, items: {type: string, format: uuid}}
+        output: {$ref: './impairment-analysis.yaml#/components/schemas/AnalysisOutput'}
+        reviews:
+          type: array
+          items: {$ref: '#/components/schemas/AnalysisReviewRecord'}
+    AnalysisReview:
+      type: object
+      required: [findings]
+      properties:
+        findings:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/ReviewedFinding'}
+        clientPicture: {type: string, maxLength: 20000, nullable: true}
+    ReviewedFinding:
+      type: object
+      required: [findingId, domain, explanation, disposition, sources]
+      properties:
+        findingId: {type: string, minLength: 1, maxLength: 100}
+        domain: {type: string, minLength: 1, maxLength: 200}
+        score: {type: integer, nullable: true, minimum: 0, maximum: 4}
+        explanation: {type: string, minLength: 1, maxLength: 20000}
+        disposition: {type: string, enum: [CONFIRMED, ADJUSTED, REJECTED, MANUAL]}
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: {$ref: './impairment-analysis.yaml#/components/schemas/Source'}
+    AnalysisReviewRecord:
+      type: object
+      required: [reviewId, reviewedBy, reviewedAt, review]
+      properties:
+        reviewId: {type: string, format: uuid}
+        reviewedBy: {type: string}
+        reviewedAt: {type: string, format: date-time}
+        review: {$ref: '#/components/schemas/AnalysisReview'}
     CreateCaseRequest:
       type: object
       additionalProperties: false
       required: [applicantId, clientName, lastName, initials, citizenServiceNumber, birthDate, street, houseNumber, postalCode, city, country, permanentCareNeed, permanentSupervision, applicantRole, signedBy]
       properties:
         applicantId: { type: string, minLength: 1, maxLength: 100, pattern: '.*\S.*' }
+        submissionChannel:
+          type: string
+          enum: [CLIENT_PORTAL, CARE_PROVIDER, POST]
+          default: CLIENT_PORTAL
+          description: Intake channel, separate from applicant identity and authorization. POST is registered by the researcher; AO only uploads documents.
         clientName: { type: string, minLength: 1, maxLength: 200, pattern: '.*\S.*' }
         lastName: { type: string, minLength: 1, maxLength: 100, pattern: '.*\S.*' }
         initials: { type: string, minLength: 1, maxLength: 20, pattern: '.*\S.*' }
@@ -476,7 +693,7 @@ components:
     Application:
       type: object
       additionalProperties: false
-      required: [applicationId, caseId, applicantId, permanentCareNeed, permanentSupervision, applicantRole, signedBy, submittedAt, applicantStatus, statusUpdatedAt]
+      required: [applicationId, caseId, applicantId, permanentCareNeed, permanentSupervision, applicantRole, submissionChannel, signedBy, submittedAt, applicantStatus, statusUpdatedAt]
       properties:
         applicationId: { type: string, format: uuid }
         caseId: { type: string, format: uuid }
@@ -484,16 +701,17 @@ components:
         permanentCareNeed: { type: boolean }
         permanentSupervision: { type: boolean }
         applicantRole: { type: string, enum: [client, gemachtigde, wettelijk_vertegenwoordiger] }
+        submissionChannel: {type: string, enum: [CLIENT_PORTAL, CARE_PROVIDER, POST]}
         signedBy: { type: string, enum: [client, gemachtigde, gevolmachtigde_of_wettelijk_vertegenwoordiger, niemand, anders] }
         authorizationSignedByClient: { type: boolean, nullable: true }
-        submittedAt: { type: string, format: date-time }
+        submittedAt: { type: string, format: date-time, nullable: true }
         supplementRequest: { type: string, nullable: true }
         supplementResponse: { type: string, nullable: true }
         supplementRequestedAt: { type: string, format: date-time, nullable: true }
         supplementRespondedAt: { type: string, format: date-time, nullable: true }
         applicantStatus:
           type: string
-          enum: [WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
+          enum: [DRAFT, WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
         statusUpdatedAt: { type: string, format: date-time }
 
     CaseStatus:
@@ -504,7 +722,7 @@ components:
         caseId: { type: string, format: uuid }
         status:
           type: string
-          enum: [WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
+          enum: [DRAFT, WAITING_FOR_REGISTRATION, WAITING_FOR_DOCUMENTS, WAITING_FOR_TRIAGE, WAITING_FOR_ASSESSMENT, DECISION_PENDING, DECISION_SENT]
         updatedAt: { type: string, format: date-time }
 
     AddressValidationRequest:
@@ -600,6 +818,10 @@ components:
         required: { type: boolean }
         label: { type: string }
         description: { type: string, nullable: true }
+        groupId: { type: string }
+        groupTitle: { type: string }
+        groupDescription: { type: string }
+        groupOrder: { type: integer }
     PolicyEvaluation:
       type: object
       additionalProperties: false
@@ -638,6 +860,34 @@ components:
         regulationHash: { type: string, pattern: '^[a-f0-9]{64}$' }
         effectiveDate: { type: string, format: date }
         assessedAt: { type: string, format: date-time }
+    DocumentReview:
+      type: object
+      additionalProperties: false
+      required: [text, confirmed]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 20000}
+        confirmed: {type: boolean, enum: [true]}
+    DocumentExtraction:
+      type: object
+      required: [extractionId, caseId, documentId, createdAt, status, mock, fragments]
+      properties:
+        extractionId: {type: string, format: uuid}
+        caseId: {type: string, format: uuid}
+        documentId: {type: string, format: uuid}
+        createdAt: {type: string, format: date-time}
+        status: {type: string, enum: [PROCESSING, READY, FAILED, REVIEWED]}
+        jobId: {type: string, nullable: true}
+        runId: {type: string, nullable: true}
+        providerVersion: {type: string, nullable: true}
+        modelId: {type: string, nullable: true}
+        mock: {type: boolean}
+        hasSourceArtifact: {type: boolean, description: Original OCR units are available in S3 for dossier analysis.}
+        fragments:
+          type: array
+          items: {$ref: './document-structuring.yaml#/components/schemas/ExtractedFragment'}
+        reviewedText: {type: string, nullable: true}
+        reviewedBy: {type: string, nullable: true}
+        reviewedAt: {type: string, format: date-time, nullable: true}
     Problem:
       type: object
       required: [type, title, status, detail, instance]

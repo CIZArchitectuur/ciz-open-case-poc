@@ -31,6 +31,24 @@ public class DocumentGateway {
         }
     }
 
+    public UUID storeArtifact(UUID caseId, byte[] bytes) {
+        java.nio.file.Path path = null;
+        try {
+            path = java.nio.file.Files.createTempFile("ocr-artifact-", ".json");
+            java.nio.file.Files.write(path, bytes);
+            return api.uploadArtifact(caseId, path.toFile()).getDocumentId();
+        } catch (Exception unavailable) { throw new DocumentUnavailableException(unavailable); }
+        finally { if (path != null) try { java.nio.file.Files.deleteIfExists(path); } catch (java.io.IOException ignored) {} }
+    }
+
+    public byte[] readArtifact(UUID artifactId) {
+        try {
+            var path = api.downloadDocument(artifactId).toPath();
+            try { return java.nio.file.Files.readAllBytes(path); }
+            finally { java.nio.file.Files.deleteIfExists(path); }
+        } catch (Exception unavailable) { throw new DocumentUnavailableException(unavailable); }
+    }
+
     @Retry(maxRetries = 2, delay = 100, jitter = 50, retryOn = ProcessingException.class)
     public List<CaseDocument> list(UUID caseId) {
         try {

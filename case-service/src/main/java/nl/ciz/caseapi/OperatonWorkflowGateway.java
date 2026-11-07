@@ -15,7 +15,6 @@ import nl.ciz.caseapi.generated.operaton.api.WorkflowApi;
 import nl.ciz.caseapi.generated.operaton.model.CompleteTaskRequest;
 import nl.ciz.caseapi.generated.operaton.model.HistoricTask;
 import nl.ciz.caseapi.generated.operaton.model.ProcessInstance;
-import nl.ciz.caseapi.generated.operaton.model.StartProcessRequest;
 import nl.ciz.caseapi.generated.operaton.model.VariableValue;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
@@ -41,23 +40,8 @@ public class OperatonWorkflowGateway {
         this.queries = queries;
     }
 
-    public void startForCase(UUID caseId) {
-        try {
-            api.startProcessInstance(PROCESS_DEFINITION_KEY,
-                    new StartProcessRequest().businessKey(caseId.toString()).variables(Map.of()));
-        } catch (ApiException | ProcessingException exception) {
-            throw new WorkflowUnavailableException(exception);
-        }
-    }
-
-    public void ensureStarted(UUID caseId) {
-        if (findProcesses(caseId.toString(), null).isEmpty()) {
-            startForCase(caseId);
-        }
-    }
 
     public List<CaseTask> listTasks(UUID caseId) {
-        ensureStarted(caseId);
         return findTasks(caseId.toString(), null).stream()
                 .filter(OperatonWorkflowGateway::isKnownTask)
                 .map(task -> toCaseTask(task, caseId))

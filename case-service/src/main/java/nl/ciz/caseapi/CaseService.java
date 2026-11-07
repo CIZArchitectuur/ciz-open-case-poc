@@ -28,6 +28,7 @@ import nl.ciz.caseapi.generated.operaton.model.VariableValue;
 
 @ApplicationScoped
 public class CaseService {
+    @jakarta.inject.Inject AssessmentGateway assessments;
     private final Clock clock = Clock.systemUTC();
     private final OperatonWorkflowGateway workflow;
     private final DocumentGateway documents;
@@ -49,6 +50,12 @@ public class CaseService {
 
     @Transactional
     public ModelCase create(CreateCaseRequest request) {
+        var draft = createDraft(request);
+        return submit(draft.getCaseId(), UUID.randomUUID().toString());
+    }
+
+    @Transactional
+    public ModelCase createDraft(CreateCaseRequest request) {
         var person = PersonEntity.<PersonEntity>find("citizenServiceNumber", request.getCitizenServiceNumber().trim())
                 .firstResultOptional().orElseGet(() -> {
                     var created = new PersonEntity();
@@ -88,18 +95,38 @@ public class CaseService {
         application.permanentCareNeed = request.getPermanentCareNeed();
         application.permanentSupervision = request.getPermanentSupervision();
         application.applicantRole = request.getApplicantRole().toString();
+        application.submissionChannel = request.getSubmissionChannel() == null ? "CLIENT_PORTAL" : request.getSubmissionChannel().toString();
         application.signedBy = request.getSignedBy().toString();
         application.authorizationSignedByClient = request.getAuthorizationSignedByClient();
-        application.submittedAt = entity.createdAt;
-        application.applicantStatus = "WAITING_FOR_REGISTRATION";
+        application.applicantStatus = "DRAFT";
         application.statusUpdatedAt = entity.createdAt;
         application.persistAndFlush();
-        workflow.startForCase(entity.caseId);
         return toModel(entity);
     }
 
+    @Transactional
+    public ModelCase submit(UUID caseId, String correlationId) {
+        var entity = CaseEntity.<CaseEntity>findById(caseId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (entity == null) throw new CaseNotFoundException(caseId);
+        var application = ApplicationEntity.<ApplicationEntity>find("caseId", caseId).firstResult();
+        if (application.submittedAt != null) return toModel(entity);
+        // Resolve the durable document list before starting the process.
+        var attachments = documents.list(caseId);
+        application.submittedAt = now();
+        application.applicantStatus = "WAITING_FOR_REGISTRATION";
+        application.statusUpdatedAt = application.submittedAt;
+        submissionEvents.record(application, attachments, correlationId);
+        return toModel(entity);
+    }
+
+    @jakarta.inject.Inject SubmissionEventOutbox submissionEvents;
+
     public Optional<ModelCase> find(UUID caseId) {
-        return CaseEntity.<CaseEntity>findByIdOptional(caseId).map(CaseService::toModel);
+        return CaseEntity.<CaseEntity>findByIdOptional(caseId).map(this::toModel);
+    }
+
+    public java.util.List<ModelCase> listCases() {
+        return CaseEntity.<CaseEntity>find("order by createdAt desc").range(0,99).list().stream().map(this::toModel).toList();
     }
 
     public Optional<CaseStatus> status(UUID caseId) {
@@ -113,12 +140,18 @@ public class CaseService {
     public Optional<List<ModelCase>> listPersonCases(UUID personId) {
         if (PersonEntity.findById(personId) == null) return Optional.empty();
         return Optional.of(CaseEntity.<CaseEntity>list("personId = ?1 order by createdAt desc", personId)
-                .stream().map(CaseService::toModel).toList());
+                .stream().map(this::toModel).toList());
     }
 
+    @Transactional
     public CaseDocument addDocument(UUID caseId, String fileName, String contentType, File body) {
         requireCase(caseId);
-        return documents.upload(caseId, fileName, contentType, body);
+        var document=documents.upload(caseId, fileName, contentType, body);
+        var application=ApplicationEntity.<ApplicationEntity>find("caseId",caseId).firstResult();
+        submissionEvents.documentReceived(application,document);
+        if(application.submittedAt!=null && !"WAITING_FOR_DOCUMENTS".equals(application.applicantStatus))
+            submissionEvents.record(application,documents.list(caseId),null);
+        return document;
     }
 
     public List<CaseDocument> listDocuments(UUID caseId) {
@@ -133,6 +166,8 @@ public class CaseService {
 
     public List<CaseTask> listTasks(UUID caseId) {
         requireCase(caseId);
+        var application=ApplicationEntity.<ApplicationEntity>find("caseId",caseId).firstResult();
+        if(application.submittedAt==null) return List.of();
         return workflow.listTasks(caseId);
     }
 
@@ -201,6 +236,7 @@ public class CaseService {
                 application.supplementResponse = text;
                 application.supplementRespondedAt = now();
                 application.persist();
+                submissionEvents.record(application, documents.list(application.caseId), correlationId);
             }
             case TRIAGE -> {
                 if (request.getTriageOutcome() == null) throw new InvalidTaskCompletionException();
@@ -224,12 +260,11 @@ public class CaseService {
                 saveDecision(application.caseId, taskId, result, request);
             }
             case OUTGOING_COMMUNICATION -> {
-                var decision = DecisionEntity.<DecisionEntity>find(
-                        "caseId = ?1 order by decidedAt desc, decisionId desc", application.caseId)
-                        .firstResultOptional().orElseThrow(InvalidTaskCompletionException::new);
-                if (decision.sentAt != null) throw new InvalidTaskCompletionException();
-                decision.sentAt = now();
-                decision.persist();
+                var decisions = assessments.decisions(application.caseId);
+                if (decisions.isEmpty()) throw new InvalidTaskCompletionException();
+                var decision = decisions.get(decisions.size()-1);
+                if (decision.getSentAt() != null) throw new InvalidTaskCompletionException();
+                assessments.dispatch(application.caseId, decision.getDecisionId(), now());
             }
         }
         var completed = workflow.completeTask(taskId, variables);
@@ -333,7 +368,7 @@ public class CaseService {
 
     private void saveDecision(UUID caseId, UUID taskId, String result, TaskCompletionRequest request) {
         var decision = new DecisionEntity();
-        decision.decisionId = UUID.randomUUID();
+        decision.decisionId = UUID.nameUUIDFromBytes((caseId+":"+taskId+":decision").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         decision.caseId = caseId;
         decision.result = result;
         decision.motivation = requiredText(request.getDecisionMotivation());
@@ -347,20 +382,17 @@ public class CaseService {
         }
         decision.decidedAt = now();
         decision.sourceTaskId = taskId;
-        var policyEvaluation = CasePolicyEvaluationEntity.<CasePolicyEvaluationEntity>find(
-                "caseId = ?1 order by evaluatedAt desc, evaluationId desc", caseId).firstResult();
-        var medicalAssessment = CaseMedicalAssessmentEntity.<CaseMedicalAssessmentEntity>find(
-                "caseId = ?1 order by assessedAt desc, assessmentId desc", caseId).firstResult();
-        decision.policyEvaluationId = policyEvaluation == null ? null : policyEvaluation.evaluationId;
-        decision.medicalAssessmentId = medicalAssessment == null ? null : medicalAssessment.assessmentId;
-        decision.persistAndFlush();
+        assessments.migrate(caseId);
+        decision.policyEvaluationId = assessments.latestPolicy(caseId);
+        decision.medicalAssessmentId = assessments.latestMedical(caseId);
+        assessments.saveDecision(decision);
     }
 
     private Instant now() {
         return Instant.now(clock).truncatedTo(ChronoUnit.MICROS);
     }
 
-    private static ModelCase toModel(CaseEntity entity) {
+    private ModelCase toModel(CaseEntity entity) {
         var person = (PersonEntity) PersonEntity.findById(entity.personId);
         var address = (AddressEntity) AddressEntity.findById(entity.addressId);
         var application = ApplicationEntity.<ApplicationEntity>find("caseId", entity.caseId).firstResult();
@@ -370,14 +402,7 @@ public class CaseService {
                 .addressId(entity.addressId)
                 .applicationId(application.applicationId)
                 .createdAt(entity.createdAt.atOffset(ZoneOffset.UTC))
-                .decisions(DecisionEntity.<DecisionEntity>list(
-                        "caseId = ?1 order by decidedAt, decisionId", entity.caseId).stream()
-                        .map(decision -> new Decision().decisionId(decision.decisionId).caseId(decision.caseId)
-                                .result(Decision.ResultEnum.fromValue(decision.result)).motivation(decision.motivation)
-                                .zorgprofiel(decision.zorgprofiel).grondslagen(decision.grondslagen)
-                                .decidedAt(offset(decision.decidedAt)).sentAt(offset(decision.sentAt))
-                                .sourceTaskId(decision.sourceTaskId).policyEvaluationId(decision.policyEvaluationId)
-                                .medicalAssessmentId(decision.medicalAssessmentId)).toList())
+                .decisions(assessments.decisions(entity.caseId))
                 .person(new Person()
                         .personId(person.personId).clientName(person.clientName).lastName(person.lastName)
                         .initials(person.initials).citizenServiceNumber(person.citizenServiceNumber)
@@ -391,9 +416,10 @@ public class CaseService {
                         .applicantId(application.applicantId).permanentCareNeed(application.permanentCareNeed)
                         .permanentSupervision(application.permanentSupervision)
                         .applicantRole(Application.ApplicantRoleEnum.fromValue(application.applicantRole))
+                        .submissionChannel(Application.SubmissionChannelEnum.fromValue(application.submissionChannel))
                         .signedBy(Application.SignedByEnum.fromValue(application.signedBy))
                         .authorizationSignedByClient(application.authorizationSignedByClient)
-                        .submittedAt(application.submittedAt.atOffset(ZoneOffset.UTC))
+                        .submittedAt(offset(application.submittedAt))
                         .applicantStatus(Application.ApplicantStatusEnum.fromValue(application.applicantStatus))
                         .statusUpdatedAt(offset(application.statusUpdatedAt))
                         .supplementRequest(application.supplementRequest)

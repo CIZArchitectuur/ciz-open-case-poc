@@ -4,7 +4,24 @@
  */
 
 export interface paths {
-    "/cases": {
+    "/cases/{caseId}/bas-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Processing history and readiness, without extracted medical content */
+        get: operations["listCaseBasRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/drafts": {
         parameters: {
             query?: never;
             header?: never;
@@ -12,6 +29,116 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        put?: never;
+        /** Save a fictional application draft before uploading attachments */
+        post: operations["createCaseDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Definitively submit a fictional draft and its persisted attachments */
+        post: operations["submitCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/impairment-analyses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        /** Onderzoeker views analysis history and staleness */
+        get: operations["listImpairmentAnalyses"];
+        put?: never;
+        /** Onderzoeker starts a background analysis of the current ready PDF dossier */
+        post: operations["startImpairmentAnalysis"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/impairment-analyses/{analysisId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Onderzoeker appends a source-linked human review, never automatic rule facts */
+        post: operations["reviewImpairmentAnalysis"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/documents/{documentId}/structuring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        /** Staff inspect extraction and source references; polling refreshes pending results */
+        get: operations["getDocumentStructuring"];
+        put?: never;
+        /** Onderzoeker starts PDF extraction; no facts or BPMN tasks are changed */
+        post: operations["startDocumentStructuring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{caseId}/documents/{documentId}/structuring/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Onderzoeker records a reviewed transcription; never automatically supplied to RegelRecht */
+        post: operations["reviewDocumentStructuring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff dossier overview; most recent 100 fictional cases */
+        get: operations["listCases"];
         put?: never;
         /** Create a fictional Wlz application */
         post: operations["createCase"];
@@ -267,8 +394,53 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DossierAnalysis: {
+            /** Format: uuid */
+            analysisId: string;
+            /** Format: uuid */
+            caseId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            completedAt?: string | null;
+            /** @enum {string} */
+            status: "QUEUED" | "PROCESSING" | "READY" | "FAILED";
+            stale: boolean;
+            /** @enum {string|null} */
+            errorCode?: "UNAVAILABLE" | "INTERRUPTED" | null;
+            documentIds: string[];
+            output?: components["schemas"]["AnalysisOutput"];
+            reviews: components["schemas"]["AnalysisReviewRecord"][];
+        };
+        AnalysisReview: {
+            findings: components["schemas"]["ReviewedFinding"][];
+            clientPicture?: string | null;
+        };
+        ReviewedFinding: {
+            findingId: string;
+            domain: string;
+            score?: number | null;
+            explanation: string;
+            /** @enum {string} */
+            disposition: "CONFIRMED" | "ADJUSTED" | "REJECTED" | "MANUAL";
+            sources: components["schemas"]["Source"][];
+        };
+        AnalysisReviewRecord: {
+            /** Format: uuid */
+            reviewId: string;
+            reviewedBy: string;
+            /** Format: date-time */
+            reviewedAt: string;
+            review: components["schemas"]["AnalysisReview"];
+        };
         CreateCaseRequest: {
             applicantId: string;
+            /**
+             * @description Intake channel, separate from applicant identity and authorization. POST is registered by the researcher; AO only uploads documents.
+             * @default CLIENT_PORTAL
+             * @enum {string}
+             */
+            submissionChannel: "CLIENT_PORTAL" | "CARE_PROVIDER" | "POST";
             clientName: string;
             lastName: string;
             initials: string;
@@ -365,10 +537,12 @@ export interface components {
             /** @enum {string} */
             applicantRole: "client" | "gemachtigde" | "wettelijk_vertegenwoordiger";
             /** @enum {string} */
+            submissionChannel: "CLIENT_PORTAL" | "CARE_PROVIDER" | "POST";
+            /** @enum {string} */
             signedBy: "client" | "gemachtigde" | "gevolmachtigde_of_wettelijk_vertegenwoordiger" | "niemand" | "anders";
             authorizationSignedByClient?: boolean | null;
             /** Format: date-time */
-            submittedAt: string;
+            submittedAt: string | null;
             supplementRequest?: string | null;
             supplementResponse?: string | null;
             /** Format: date-time */
@@ -376,7 +550,7 @@ export interface components {
             /** Format: date-time */
             supplementRespondedAt?: string | null;
             /** @enum {string} */
-            applicantStatus: "WAITING_FOR_REGISTRATION" | "WAITING_FOR_DOCUMENTS" | "WAITING_FOR_TRIAGE" | "WAITING_FOR_ASSESSMENT" | "DECISION_PENDING" | "DECISION_SENT";
+            applicantStatus: "DRAFT" | "WAITING_FOR_REGISTRATION" | "WAITING_FOR_DOCUMENTS" | "WAITING_FOR_TRIAGE" | "WAITING_FOR_ASSESSMENT" | "DECISION_PENDING" | "DECISION_SENT";
             /** Format: date-time */
             statusUpdatedAt: string;
         };
@@ -384,7 +558,7 @@ export interface components {
             /** Format: uuid */
             caseId: string;
             /** @enum {string} */
-            status: "WAITING_FOR_REGISTRATION" | "WAITING_FOR_DOCUMENTS" | "WAITING_FOR_TRIAGE" | "WAITING_FOR_ASSESSMENT" | "DECISION_PENDING" | "DECISION_SENT";
+            status: "DRAFT" | "WAITING_FOR_REGISTRATION" | "WAITING_FOR_DOCUMENTS" | "WAITING_FOR_TRIAGE" | "WAITING_FOR_ASSESSMENT" | "DECISION_PENDING" | "DECISION_SENT";
             /** Format: date-time */
             updatedAt: string;
         };
@@ -461,6 +635,10 @@ export interface components {
             required: boolean;
             label: string;
             description?: string | null;
+            groupId?: string;
+            groupTitle?: string;
+            groupDescription?: string;
+            groupOrder?: number;
         };
         PolicyEvaluation: {
             /** Format: uuid */
@@ -516,6 +694,35 @@ export interface components {
             /** Format: date-time */
             assessedAt: string;
         };
+        DocumentReview: {
+            text: string;
+            /** @enum {boolean} */
+            confirmed: true;
+        };
+        DocumentExtraction: {
+            /** Format: uuid */
+            extractionId: string;
+            /** Format: uuid */
+            caseId: string;
+            /** Format: uuid */
+            documentId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @enum {string} */
+            status: "PROCESSING" | "READY" | "FAILED" | "REVIEWED";
+            jobId?: string | null;
+            runId?: string | null;
+            providerVersion?: string | null;
+            modelId?: string | null;
+            mock: boolean;
+            /** @description Original OCR units are available in S3 for dossier analysis. */
+            hasSourceArtifact?: boolean;
+            fragments: components["schemas"]["ExtractedFragment"][];
+            reviewedText?: string | null;
+            reviewedBy?: string | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+        };
         Problem: {
             /** Format: uri-reference */
             type: string;
@@ -524,6 +731,59 @@ export interface components {
             detail: string;
             /** Format: uri-reference */
             instance: string;
+        };
+        BasRun: {
+            /** Format: uuid */
+            runId: string;
+            /** Format: uuid */
+            caseId: string;
+            documentIds: string[];
+            components: string[];
+            reason: string;
+            /** @enum {string} */
+            status: "QUEUED" | "EXTRACTING" | "WAITING_FOR_SOURCES" | "ANALYSING" | "READY" | "FAILED";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            analysisId?: string | null;
+            errorCode?: string | null;
+        };
+        Source: {
+            /** Format: uuid */
+            documentId: string;
+            /** Format: uuid */
+            extractionId: string;
+            docKey: string;
+            unitId?: string | null;
+            subdocumentId?: string | null;
+            pages?: number[];
+            regionIds?: number[];
+            text: string;
+        };
+        Finding: {
+            findingId: string;
+            domain: string;
+            /** @description Upstream Ernst score; null means unassessed, not zero. */
+            score?: number | null;
+            explanation: string;
+            sources: components["schemas"]["Source"][];
+        };
+        AnalysisOutput: {
+            mock: boolean;
+            pipelineVersion: string;
+            /** @description Configured, operator-verified upstream model/checkpoint; simulation is explicitly identified. */
+            classifierModel: string;
+            suggestedCareProfile?: string | null;
+            clientPicture?: string | null;
+            sourceUnits: components["schemas"]["Source"][];
+            findings: components["schemas"]["Finding"][];
+        };
+        ExtractedFragment: {
+            text: string;
+            subdocumentId?: string | null;
+            page?: number | null;
+            pages?: number[] | null;
+            unitId?: string | null;
         };
     };
     responses: {
@@ -546,6 +806,268 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listCaseBasRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: components["parameters"]["CaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description BAS processing versions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BasRun"][];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+        };
+    };
+    createCaseDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Draft created; no workflow or BAS analysis started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    submitCase: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-ID"?: string;
+            };
+            path: {
+                caseId: components["parameters"]["CaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Submitted application; retrying is idempotent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listImpairmentAnalyses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Most recent first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DossierAnalysis"][];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+        };
+    };
+    startImpairmentAnalysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued job or current pending analysis */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DossierAnalysis"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    reviewImpairmentAnalysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                analysisId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalysisReview"];
+            };
+        };
+        responses: {
+            /** @description Reviewed analysis */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DossierAnalysis"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+        };
+    };
+    getDocumentStructuring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored extraction */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentExtraction"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    startDocumentStructuring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted or existing processing job */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentExtraction"];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    reviewDocumentStructuring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseId: string;
+                documentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentReview"];
+            };
+        };
+        responses: {
+            /** @description Reviewed transcription with audit */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentExtraction"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+        };
+    };
+    listCases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cases */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Case"][];
+                };
+            };
+            401: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+        };
+    };
     createCase: {
         parameters: {
             query?: never;

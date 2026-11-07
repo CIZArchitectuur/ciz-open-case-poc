@@ -4,15 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       suffix:
-        description: Globally unique suffix for the Azure resources (ACR, storage, PostgreSQL)
+        description: Globally unique Azure resource suffix (keep unchanged for redeploys)
         type: string
         default: cizdev42
+        required: true
 
-# Never run two deployments at once: they would race on the same resource group.
 concurrency:
-  group: azure-deploy
+  group: azure-deploy-dev
   cancel-in-progress: false
-
 permissions:
   contents: read
 
@@ -20,119 +19,108 @@ env:
   AZURE_TENANT_ID: 53140781-c4dd-40a2-8a89-92127023d5fe
   AZURE_SUBSCRIPTION_ID: c3ab647a-0f33-45fb-869b-f406e846005c
   AZURE_RESOURCE_GROUP: ciz-open-case-poc-dev
-  AZURE_LOCATION: westeurope
-  AZURE_SUFFIX: ${{ inputs.suffix || 'cizdev42' }}
-  ACR_NAME: cizopencase${{ inputs.suffix || 'cizdev42' }}
+  AZURE_SUFFIX: ${{ inputs.suffix }}
+  AZURE_ENVIRONMENT: dev
   IMAGE_TAG: ${{ github.sha }}
-  REGELRECHT_REVISION: 89f43786b66ed270b066ae32a48332ce189c73a5
 
 jobs:
-  verify:
-    name: Build and test (same as CI)
+  preflight:
+    name: Check Azure federation and deployment scope
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - name: Build runtime and test images
-        run: docker compose --profile test build s3 case-service document-service policy-service address-validation-adapter status-notification-adapter operaton frontend unit-tests document-unit-tests address-validation-tests status-notification-tests contract-tests integration-tests e2e-tests ui-tests
-      - name: Start the vertical slice
-        run: docker compose up -d
-      - name: Unit tests
-        run: docker compose --profile test run --rm unit-tests
-      - name: Document-service unit tests
-        run: docker compose --profile test run --rm document-unit-tests
-      - name: Address-validation adapter tests
-        run: docker compose --profile test run --rm address-validation-tests
-      - name: Status-notification adapter tests
-        run: docker compose --profile test run --rm status-notification-tests
-      - name: Contract tests
-        run: docker compose --profile test run --rm contract-tests
-      - name: Integration tests
-        run: docker compose --profile test run --rm integration-tests
-      - name: End-to-end tests
-        run: docker compose --profile test run --rm e2e-tests
-      - name: Browser UI tests
-        run: docker compose --profile test run --rm ui-tests
-      - name: Container logs
-        if: failure()
-        run: docker compose logs
-      - name: Stop containers
-        if: always()
-        run: docker compose down -v --remove-orphans
-
-  deploy:
-    name: Deploy to Azure
-    if: ${{ false }} # Waiting for service-principal permissions; re-enable deliberately.
-    needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    env:
-      POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to Azure
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Create resource group
-        run: az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
-
-      - name: Deploy infrastructure (ACR, storage, PostgreSQL, Container Apps)
-        run: >
-          az deployment group create
-          --resource-group "$AZURE_RESOURCE_GROUP"
-          --name "ciz-bootstrap-$(date +%Y%m%d-%H%M%S)"
-          --template-file infra/bootstrap.bicep
-          --parameters environment=dev suffix="$AZURE_SUFFIX"
-          postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to ACR
-        run: az acr login --name "$ACR_NAME" --expose-docker-credentials
-
-      - name: Build and push application images
-        env:
-          ACR_LOGIN_SERVER: ${{ env.ACR_NAME }}
+      - name: Check existing resource group and providers
         run: |
           set -euo pipefail
-          login_server=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+          az group show --name "$AZURE_RESOURCE_GROUP" --output none
+          for provider in Microsoft.App Microsoft.Network Microsoft.DBforPostgreSQL Microsoft.Storage Microsoft.ContainerRegistry Microsoft.OperationalInsights Microsoft.EventHub; do
+            if ! state=$(az provider show --namespace "$provider" --query registrationState -o tsv 2>/dev/null); then
+              echo "::warning::Cannot read subscription registration for $provider with resource-group-scoped rights; deployment will verify availability."
+              continue
+            fi
+            [ "$state" = Registered ] || { echo "::error::$provider must be registered by a subscription administrator"; exit 1; }
+          done
 
-          build_push() {
-            local context=$1 dockerfile=$2 image=$3 target=$4
-            local args=(
-              --platform linux/amd64
-              --file "$dockerfile"
-              --build-arg REGELRECHT_REVISION="$REGELRECHT_REVISION"
-              --tag "$login_server/$image:$IMAGE_TAG"
-            )
-            [ -n "$target" ] && args+=(--target "$target")
-            docker buildx build "${args[@]}" --push "$context"
-          }
+  verify:
+    uses: ./.github/workflows/ci.yml
 
-          build_push . document-service/Dockerfile document-service runtime
-          build_push . policy-service/Dockerfile policy-service runtime
-          build_push . case-service/Dockerfile case-service runtime
-          build_push frontend frontend/Dockerfile frontend runtime
-          build_push processes processes/Dockerfile operaton-ciz ""
-
-      - name: Deploy applications
-        run: >
-          az deployment group create
-          --resource-group "$AZURE_RESOURCE_GROUP"
-          --name "ciz-apps-$(date +%Y%m%d-%H%M%S)"
-          --template-file infra/apps.bicep
-          --parameters environment=dev suffix="$AZURE_SUFFIX"
-          imageTag="$IMAGE_TAG" postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD"
-
-      - name: Show deployed URLs
+  deploy:
+    name: Deploy and verify Azure
+    needs: [verify, preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+      MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
+      DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
+      KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment configuration
+        run: python3 scripts/azure-parameters.py validate
+      - name: Log in as the deployment service principal (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy VNet, Consumption environment and persistent infrastructure
         run: |
-          deployment=$(az deployment group list --resource-group "$AZURE_RESOURCE_GROUP" \
-            --query "sortBy(@, &name)[-1].name" -o tsv)
-          az deployment group show --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$deployment" --query properties.outputs -o table
+          set -euo pipefail
+          python3 scripts/azure-parameters.py bootstrap
+          az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "bootstrap-$GITHUB_RUN_ID" --template-file infra/bootstrap.bicep \
+            --parameters @"$RUNNER_TEMP/bootstrap.parameters.json" --output none
+          domain=$(az deployment group show -g "$AZURE_RESOURCE_GROUP" -n "bootstrap-$GITHUB_RUN_ID" --query properties.outputs.defaultDomain.value -o tsv)
+          echo "DEFAULT_DOMAIN=$domain" >> "$GITHUB_ENV"
+          echo "ACR_NAME=cizopencase$AZURE_SUFFIX" >> "$GITHUB_ENV"
+      - name: Configure repository-scoped registry credentials
+        run: |
+          set -euo pipefail
+          push_password=$(az acr token credential generate -r "$ACR_NAME" -n github-actions-push --password1 --query 'passwords[0].value' -o tsv)
+          echo "::add-mask::$push_password"
+          printf '%s' "$push_password" | docker login "$ACR_NAME.azurecr.io" --username github-actions-push --password-stdin
+          pull_password=$(az acr token credential generate -r "$ACR_NAME" -n container-apps-pull --password1 --query 'passwords[0].value' -o tsv)
+          echo "::add-mask::$pull_password"
+          echo "REGISTRY_PASSWORD=$pull_password" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push all application images
+        run: bash scripts/azure-build-images.sh
+      - name: Deploy applications
+        run: |
+          set -euo pipefail
+          python3 scripts/azure-parameters.py apps
+          az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "storage-$GITHUB_RUN_ID" --template-file infra/apps.bicep \
+            --parameters @"$RUNNER_TEMP/apps.parameters.json" storageOnly=true --output none
+          bash scripts/azure-verify-infrastructure.sh storage
+          az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "apps-$GITHUB_RUN_ID" --template-file infra/apps.bicep \
+            --parameters @"$RUNNER_TEMP/apps.parameters.json" --output none
+          echo "FRONTEND_URL=https://ciz-dev-frontend.$DEFAULT_DOMAIN" >> "$GITHUB_ENV"
+      - name: Initialize document bucket and check single NAT egress
+        run: bash scripts/azure-verify-infrastructure.sh
+      - name: Verify deployed API, authentication, documents and asynchronous workflow
+        run: |
+          docker build -f tests/Dockerfile -t ciz-azure-smoke .
+          docker run --rm -e FRONTEND_URL -e DEMO_USER_PASSWORD ciz-azure-smoke python tests/deployment/smoke.py
+      - name: Deployment summary
+        run: |
+          printf 'Frontend: %s\n\nConsumption workload profile, private PostgreSQL, one public application ingress and one NAT egress.\n\nOCR and impairment analysis use labelled mocks.\n' "$FRONTEND_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary credentials
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/bootstrap.parameters.json" "$RUNNER_TEMP/apps.parameters.json"
+          docker logout "cizopencase$AZURE_SUFFIX.azurecr.io" || true

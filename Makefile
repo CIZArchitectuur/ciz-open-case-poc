@@ -12,7 +12,10 @@ clean:
 build:
 	docker compose build
 
-test: unit-test document-unit-test address-validation-unit-test status-notification-route-test contract-test integration-test e2e-test ui-test
+test: unit-test document-unit-test address-validation-unit-test status-notification-route-test impairment-analysis-test contract-test integration-test e2e-test ui-test
+
+impairment-analysis-test:
+	docker compose --profile test run --build --rm impairment-analysis-tests
 
 unit-test:
 	docker compose --profile test run --rm unit-tests
@@ -30,14 +33,14 @@ contract-test:
 	docker compose --profile test run --rm contract-tests
 
 integration-test:
-	docker compose --profile test run --rm integration-tests
+	docker compose -f compose.yaml -f compose.analysis-test.yaml --profile test run --rm integration-tests
 
 e2e-test:
 	docker compose --profile test run --rm e2e-tests
 
 ui-test:
 	docker compose --profile test build ui-tests
-	docker compose --profile test run --rm ui-tests
+	docker compose -f compose.yaml -f compose.analysis-test.yaml --profile test run --rm ui-tests
 
 dev:
 	docker compose --profile dev up case-service-dev frontend-dev

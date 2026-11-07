@@ -14,14 +14,13 @@
         <bpmn:flowNodeRef>provideSupplement</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>applicationDecisionReceived</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_WPAO" name="WP-AO / CIZ-medewerker">
+      <bpmn:lane id="Lane_WPAO" name="AO · documentupload buiten de taakflow" />
+      <bpmn:lane id="Lane_WlZ" name="Onderzoeker">
         <bpmn:flowNodeRef>registerAndCheckApplication</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>registrationOutcome</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>requestSupplement</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>sendOutgoingDecision</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>applicationClosed</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_WlZ" name="WP-Wlz / Beoordelaar">
         <bpmn:flowNodeRef>triageApplication</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>triageOutcome</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>investigateAndDecide</bpmn:flowNodeRef>
@@ -33,7 +32,7 @@
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_ToRegistration" sourceRef="applicationReceived" targetRef="registerAndCheckApplication" />
 
-    <bpmn:userTask id="registerAndCheckApplication" name="Aanvraag registreren en controleren" operaton:candidateGroups="ciz-medewerker">
+    <bpmn:userTask id="registerAndCheckApplication" name="Aanvraag registreren en controleren" operaton:candidateGroups="beoordelaar">
       <bpmn:incoming>Flow_ToRegistration</bpmn:incoming>
       <bpmn:incoming>Flow_SupplementReceived</bpmn:incoming>
       <bpmn:outgoing>Flow_ToRegistrationOutcome</bpmn:outgoing>
@@ -53,7 +52,7 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${registrationOutcome == 'NOT_TAKEN_INTO_CONSIDERATION'}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <bpmn:userTask id="requestSupplement" name="Aanvullende informatie opvragen" operaton:candidateGroups="ciz-medewerker">
+    <bpmn:userTask id="requestSupplement" name="Aanvullende informatie opvragen" operaton:candidateGroups="beoordelaar">
       <bpmn:incoming>Flow_RegistrationNeedsSupplement</bpmn:incoming>
       <bpmn:outgoing>Flow_ToSupplementWait</bpmn:outgoing>
     </bpmn:userTask>
@@ -91,7 +90,7 @@
     </bpmn:userTask>
     <bpmn:sequenceFlow id="Flow_InvestigationComplete" sourceRef="investigateAndDecide" targetRef="sendOutgoingDecision" />
 
-    <bpmn:userTask id="sendOutgoingDecision" name="Beslissing verzenden en registreren" operaton:candidateGroups="ciz-medewerker">
+    <bpmn:userTask id="sendOutgoingDecision" name="Beslissing verzenden en registreren" operaton:candidateGroups="beoordelaar">
       <bpmn:incoming>Flow_RegistrationNotTaken</bpmn:incoming>
       <bpmn:incoming>Flow_TriageDirect</bpmn:incoming>
       <bpmn:incoming>Flow_TriageNotTaken</bpmn:incoming>
@@ -112,8 +111,8 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_WlzApplication">
     <bpmndi:BPMNPlane id="BPMNPlane_WlzApplication" bpmnElement="wlz-aanvraag">
       <bpmndi:BPMNShape id="LaneShape_Applicant" bpmnElement="Lane_Applicant"><dc:Bounds x="60" y="70" width="1400" height="110" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="LaneShape_WPAO" bpmnElement="Lane_WPAO"><dc:Bounds x="60" y="180" width="1400" height="170" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="LaneShape_WlZ" bpmnElement="Lane_WlZ"><dc:Bounds x="60" y="350" width="1400" height="170" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="LaneShape_WPAO" bpmnElement="Lane_WPAO"><dc:Bounds x="60" y="520" width="1400" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="LaneShape_WlZ" bpmnElement="Lane_WlZ"><dc:Bounds x="60" y="180" width="1400" height="340" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Start" bpmnElement="applicationReceived"><dc:Bounds x="100" y="105" width="36" height="36" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Register" bpmnElement="registerAndCheckApplication"><dc:Bounds x="180" y="225" width="150" height="80" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_RegistrationOutcome" bpmnElement="registrationOutcome" isMarkerVisible="true"><dc:Bounds x="385" y="240" width="50" height="50" /></bpmndi:BPMNShape>

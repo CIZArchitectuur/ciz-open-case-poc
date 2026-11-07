@@ -1,6 +1,158 @@
 name: ciz-open-case-poc
 
 services:
+  deployment-tests:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: infra/tests/Dockerfile
+
+  workflow-start-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: workflow-local-only
+    volumes: [postgres-workflow-start-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U workflow -d workflow']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [case-network]
+  workflow-start-adapter:
+    build:
+      context: .
+      dockerfile: workflow-start-adapter/Dockerfile
+    environment:
+      DB_HOST: workflow-start-db
+      OTEL_SDK_DISABLED: 'false'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      workflow-start-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      kong: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [case-network]
+  assessment-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: assessment
+      POSTGRES_USER: assessment
+      POSTGRES_PASSWORD: assessment-local-only
+    volumes: [postgres-assessment-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U assessment -d assessment']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [case-network]
+  assessment-service:
+    build:
+      context: .
+      dockerfile: assessment-service/Dockerfile
+    environment:
+      DB_HOST: assessment-db
+      OTEL_SDK_DISABLED: 'false'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      assessment-db: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [case-network]
+  bas-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: bas
+      POSTGRES_USER: bas
+      POSTGRES_PASSWORD: bas-local-only
+    volumes: [postgres-bas-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U bas -d bas']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [case-network]
+  bas-service:
+    build:
+      context: .
+      dockerfile: bas-service/Dockerfile
+    environment:
+      DB_HOST: bas-db
+      API_GATEWAY_URL: http://kong:8000
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      OTEL_SDK_DISABLED: 'false'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      bas-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    networks: [case-network]
+    restart: unless-stopped
+  impairment-analysis-adapter:
+    build:
+      context: .
+      dockerfile: impairment-analysis-adapter/Dockerfile
+    environment:
+      IMPAIRMENT_UPSTREAM_URL: ${IMPAIRMENT_UPSTREAM_URL:-}
+      IMPAIRMENT_UPSTREAM_TOKEN: ${IMPAIRMENT_UPSTREAM_TOKEN:-}
+      IMPAIRMENT_PIPELINE_VERSION: ${IMPAIRMENT_PIPELINE_VERSION:-unverified}
+      IMPAIRMENT_CLASSIFIER_MODEL: ${IMPAIRMENT_CLASSIFIER_MODEL:-}
+      IMPAIRMENT_MOCK: "false"
+      OTEL_SDK_DISABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/q/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [case-network]
+  impairment-analysis-tests:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: impairment-analysis-adapter/Dockerfile
+      target: test
+    networks: [case-network]
+  pipeline-mock:
+    build:
+      context: .
+      dockerfile: pipeline-mock/Dockerfile
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health',timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [case-network]
+
+  document-structuring-adapter:
+    build:
+      context: .
+      dockerfile: document-structuring-adapter/Dockerfile
+    environment:
+      PIPELINE_BASE_URL: ${PIPELINE_BASE_URL:-http://kong:8000/internal/document-pipeline}
+      PIPELINE_VERSION: ${PIPELINE_VERSION:-mock-v1}
+      PIPELINE_MOCK: "true"
+      PIPELINE_CONFIG_JSON: ${PIPELINE_CONFIG_JSON:-{}}
+      OTEL_SDK_DISABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      pipeline-mock:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/q/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [case-network]
+
+  document-structuring-tests:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: document-structuring-adapter/Dockerfile
+      target: test
+    networks: [case-network]
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.0
     command:
@@ -176,6 +328,7 @@ services:
       KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
       KONG_PROXY_LISTEN: 0.0.0.0:8000
       KONG_ADMIN_LISTEN: "off"
+      KONG_DNS_VALID_TTL: "5"
       KONG_STATUS_LISTEN: 0.0.0.0:8100
       KONG_TRACING_INSTRUMENTATIONS: all
       KONG_TRACING_SAMPLING_RATE: "1.0"
@@ -185,6 +338,12 @@ services:
     volumes:
       - ./gateway/kong.yml:/etc/kong/kong.yml:ro
     depends_on:
+      bas-service:
+        condition: service_healthy
+        restart: true
+      assessment-service:
+        condition: service_healthy
+        restart: true
       otel-collector:
         condition: service_started
       document-service:
@@ -194,9 +353,15 @@ services:
         condition: service_healthy
         restart: true
       operaton:
+        # The gateway must serve submissions even before the workflow engine is ready.
+        condition: service_started
+      address-validation-adapter:
         condition: service_healthy
         restart: true
-      address-validation-adapter:
+      document-structuring-adapter:
+        condition: service_healthy
+        restart: true
+      impairment-analysis-adapter:
         condition: service_healthy
         restart: true
     healthcheck:
@@ -368,6 +533,10 @@ services:
       API_GATEWAY_URL: http://kong:8000
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
+      bas-service:
+        condition: service_healthy
+      assessment-service:
+        condition: service_healthy
       case-db:
         condition: service_healthy
       kong:
@@ -502,6 +671,8 @@ services:
       POLICY_SERVICE_URL: http://policy-service:8080
       OIDC_TEST_TOKEN_URL: http://keycloak:8080/realms/ciz-poc/protocol/openid-connect/token
     depends_on:
+      workflow-start-adapter:
+        condition: service_healthy
       kong:
         condition: service_healthy
       case-service:
@@ -521,6 +692,8 @@ services:
       POLICY_SERVICE_URL: http://policy-service:8080
       OIDC_TEST_TOKEN_URL: http://keycloak:8080/realms/ciz-poc/protocol/openid-connect/token
     depends_on:
+      workflow-start-adapter:
+        condition: service_healthy
       kong:
         condition: service_healthy
       case-service:
@@ -537,6 +710,8 @@ services:
       FRONTEND_URL: http://frontend:8080
       OIDC_TEST_TOKEN_URL: http://keycloak:8080/realms/ciz-poc/protocol/openid-connect/token
     depends_on:
+      workflow-start-adapter:
+        condition: service_healthy
       frontend:
         condition: service_healthy
     networks: [case-network]
@@ -544,10 +719,12 @@ services:
   ui-tests:
     profiles: [test]
     build:
-      context: tests/ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: tests/ui/Dockerfile
       target: test
     depends_on:
+      workflow-start-adapter:
+        condition: service_healthy
       frontend:
         condition: service_healthy
       keycloak:
@@ -557,14 +734,16 @@ services:
   ui-demo:
     profiles: [demo]
     build:
-      context: tests/ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: tests/ui/Dockerfile
       target: demo
     environment:
       PLAYWRIGHT_HEADLESS: "false"
       PLAYWRIGHT_SLOW_MO_MS: "350"
       PLAYWRIGHT_DEMO_HOLD_MS: "90000"
     depends_on:
+      workflow-start-adapter:
+        condition: service_healthy
       frontend:
         condition: service_healthy
       keycloak:
@@ -574,6 +753,9 @@ services:
     networks: [case-network]
 
 volumes:
+  postgres-workflow-start-data:
+  postgres-assessment-data:
+  postgres-bas-data:
   postgres-case-data:
   postgres-operaton-data:
   postgres-document-data:

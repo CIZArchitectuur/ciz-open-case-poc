@@ -98,13 +98,16 @@
           { "selected": true, "text": "Alle services", "value": ".*" },
           { "selected": false, "text": "Kong gateway", "value": "kong" },
           { "selected": false, "text": "Zaakservice", "value": "case-service" },
+          { "selected": false, "text": "BAS documentanalyse", "value": "bas-service" },
+          { "selected": false, "text": "Asynchrone workflowstart", "value": "workflow-start-adapter" },
+          { "selected": false, "text": "Beoordeling en besluit", "value": "assessment-service" },
           { "selected": false, "text": "Documentservice", "value": "document-service" },
           { "selected": false, "text": "RegelRecht", "value": "policy-service" },
           { "selected": false, "text": "Adresvalidatie", "value": "address-validation-adapter" },
           { "selected": false, "text": "Statusnotificatie", "value": "status-notification-adapter" },
           { "selected": false, "text": "Operaton workflow", "value": "operaton" }
         ],
-        "query": "Alle services,kong,case-service,document-service,policy-service,address-validation-adapter,status-notification-adapter,operaton",
+        "query": "Alle services,kong,case-service,workflow-start-adapter,bas-service,assessment-service,document-service,policy-service,address-validation-adapter,status-notification-adapter,operaton",
         "type": "custom"
       }
     ]

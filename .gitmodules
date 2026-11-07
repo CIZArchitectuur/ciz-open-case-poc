@@ -1,0 +1,3 @@
+[submodule "integrations/stoornissen_pipeline"]
+	path = integrations/stoornissen_pipeline
+	url = https://github.com/CIZDigitaliseert/stoornissen_pipeline.git

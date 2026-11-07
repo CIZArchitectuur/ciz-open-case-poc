@@ -7,6 +7,7 @@ import nl.ciz.policy.generated.model.IntakeForm;
 
 public class MedicalAssessmentFormResource implements MedicalAssessmentFormApi {
     private final RegelRechtEvaluator evaluator;
+    @jakarta.inject.Inject FormPresentation presentation;
 
     public MedicalAssessmentFormResource(RegelRechtEvaluator evaluator) { this.evaluator = evaluator; }
 
@@ -15,6 +16,7 @@ public class MedicalAssessmentFormResource implements MedicalAssessmentFormApi {
         var fields = evaluator.medicalAssessmentFields().stream().map(field -> new IntakeField(
                 field.factId(), IntakeField.TypeEnum.fromValue(field.type()), field.required(), label(field.factId()))
                 .description(field.description().isBlank() ? null : field.description()))
+                .map(field -> presentation.decorate("medical", field))
                 .toList();
         return Response.ok(new IntakeForm("wlz-medical-assessment", evaluator.medicalAssessmentPolicyVersion(), fields)).build();
     }
