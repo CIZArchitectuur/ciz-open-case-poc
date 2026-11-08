@@ -11,13 +11,17 @@ from tests.integration.test_case_lifecycle import BASE_URL, OPERATON_URL, case_t
 
 
 def main():
-    if sys.argv[1] in ('submit', 'submit-unavailable'):
+    if sys.argv[1] in ('submit', 'submit-unavailable', 'verify-fresh'):
         response = requests.post(f'{BASE_URL}/cases', json=unique_personal_data() | {
             'applicantId': f'fictional-async-{uuid.uuid4()}', 'clientName': 'Fictieve Kafka proef',
             'birthDate': '1980-01-01', 'permanentCareNeed': True, 'permanentSupervision': True,
         }, timeout=20)
         assert response.status_code == 201
         case = response.json()
+        if sys.argv[1] == 'verify-fresh':
+            assert len(wait_for_case_tasks(case['caseId'])) == 1
+            print('Fresh asynchronous submission after consumer restart verified')
+            return
         # The consumer is stopped: polling must never start the workflow itself.
         if sys.argv[1] == 'submit':
             for _ in range(3):
