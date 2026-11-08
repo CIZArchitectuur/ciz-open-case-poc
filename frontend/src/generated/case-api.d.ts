@@ -47,7 +47,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Definitively submit a fictional draft and its persisted attachments */
+        /** Definitively submit a fictional draft and publish its persisted attachments asynchronously */
         post: operations["submitCase"];
         delete?: never;
         options?: never;
@@ -870,7 +870,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Submitted application; retrying is idempotent */
+            /** @description Submitted application durably recorded; workflow and BAS are started asynchronously through Kafka. Retrying submission is idempotent; tasks may not yet exist. */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -57,6 +57,13 @@ jobs:
         run: docker compose --profile test run --rm e2e-tests
       - name: Browser UI tests
         run: docker compose --profile test run --rm ui-tests
+      - name: Preserve generated contract for diagnosing stale models
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-frontend-contract
+          path: frontend/src/generated/case-api.d.ts
+          retention-days: 1
       - name: Container logs
         if: failure()
         run: docker compose logs

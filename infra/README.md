@@ -69,9 +69,25 @@ registration must trust the exact branch from which the workflow is run:
 
 ```text
 issuer:   https://token.actions.githubusercontent.com
-subject:  repo:CIZArchitectuur/ciz-open-case-poc:ref:refs/heads/<branch>
+subject:  repo:CIZArchitectuur@274255285/ciz-open-case-poc@1365628512:ref:refs/heads/<branch>
 audience: api://AzureADTokenExchange
 ```
+
+The exact credential for the deployment branch is committed in
+[`federation/github-azure-consumption-deploy.json`](federation/github-azure-consumption-deploy.json).
+An owner of the Entra application can apply it with an authenticated Azure CLI:
+
+```sh
+az ad app federated-credential create --id <application-client-or-object-id> \
+  --parameters @infra/federation/github-azure-consumption-deploy.json
+```
+
+GitHub uses immutable owner/repository IDs in this repository's subject. Match the
+exact subject shown by `azure/login`; a name-only subject does not match. The first
+live check failed with `AADSTS700213`, before any Azure infrastructure was deployed.
+Resource-group Contributor does not grant permission to manage Entra application
+credentials. Creating this trust requires application ownership or appropriate
+Entra rights; reauthentication may also be required by CIZ Conditional Access.
 
 The existing Contributor grant on `ciz-open-case-poc-dev` is the deployment scope.
 An administrator must already have registered these subscription resource providers:

@@ -1,0 +1,9 @@
+{
+  "name": "github-azure-consumption-deploy",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:CIZArchitectuur@274255285/ciz-open-case-poc@1365628512:ref:refs/heads/codex/azure-consumption-deploy",
+  "description": "GitHub Actions deployment from the reviewed Azure Consumption branch",
+  "audiences": [
+    "api://AzureADTokenExchange"
+  ]
+}
