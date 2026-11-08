@@ -16,6 +16,8 @@ FROM development AS build
 RUN mvn -B -DskipTests package
 
 FROM eclipse-temurin:21-jre-alpine AS runtime
+# Kafka Snappy JNI binaries need the glibc loader on Alpine/musl.
+RUN apk add --no-cache gcompat
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build --chown=app:app /workspace/bas-service/target/quarkus-app/ ./

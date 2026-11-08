@@ -23,8 +23,8 @@ workflow_scenario=$(docker compose run --rm --no-deps integration-tests python -
 sleep 5
 docker compose up -d --no-deps --wait operaton
 docker compose run --rm --no-deps -e WORKFLOW_SCENARIO="$workflow_scenario" integration-tests python -m tests.workflow_probe verify
-# New event ID and duplicate delivery for the same application must both be harmless.
-printf '%s\n%s\n' "$workflow_scenario" "$workflow_scenario" | docker compose exec -T kafka rpk topic produce application.submitted >/dev/null
+# Snappy-compressed replay must be readable by the Alpine JVM consumers; both deliveries remain harmless.
+printf '%s\n%s\n' "$workflow_scenario" "$workflow_scenario" | docker compose exec -T kafka rpk topic produce application.submitted --compression snappy >/dev/null
 sleep 5
 docker compose restart workflow-start-adapter
 docker compose run --rm --no-deps -e WORKFLOW_SCENARIO="$workflow_scenario" integration-tests python -m tests.workflow_probe verify
