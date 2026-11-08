@@ -1,0 +1,45 @@
+server {
+    listen 8080;
+    server_name _;
+    client_max_body_size 10m;
+    resolver ${DNS_RESOLVER} valid=10s;
+
+    location = /health {
+        access_log off;
+        default_type text/plain;
+        return 200 'healthy';
+    }
+
+    location ~ ^/api/(workflow|rules|documents)(/|$) {
+        return 404;
+    }
+    location /internal/ {
+        return 404;
+    }
+
+    location ~ ^/auth/(admin|realms/master)(/|$) { return 404; }
+    location /auth/ {
+        set $identity_url ${IDENTITY_URL};
+        proxy_pass $identity_url$request_uri;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 30s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Correlation-ID $request_id;
+    }
+    location /api/ {
+        set $gateway_url ${GATEWAY_URL};
+        proxy_pass $gateway_url$request_uri;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 20s;
+        proxy_send_timeout 20s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Correlation-ID $request_id;
+    }
+
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+    }
+}

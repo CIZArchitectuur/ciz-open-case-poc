@@ -1,0 +1,8 @@
+# Contract simulation for deterministic CI only; never claims to execute RobBERT.
+services:
+  ui-tests:
+    environment:
+      EXPECT_ANALYSIS_MOCK: "true"
+  impairment-analysis-adapter:
+    environment:
+      IMPAIRMENT_MOCK: "true"

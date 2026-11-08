@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Application status events
-  version: 1.0.0
+  version: 1.2.0
   description: Minimal status-change events shared by the assessment, application, and administrative-support PoC applications.
 defaultContentType: application/json
 servers:
@@ -9,12 +9,42 @@ servers:
     host: ${KAFKA_BOOTSTRAP_SERVERS}
     protocol: kafka
 channels:
+  documentReceived:
+    address: document.received
+    messages:
+      DocumentReceived: {$ref: '#/components/messages/DocumentReceived'}
+  applicationSubmitted:
+    address: application.submitted
+    messages:
+      ApplicationSubmitted:
+        $ref: '#/components/messages/ApplicationSubmitted'
   applicationStatusChanged:
     address: application.status.changed
     messages:
       ApplicationStatusChanged:
         $ref: '#/components/messages/ApplicationStatusChanged'
 operations:
+  publishDocumentReceived:
+    action: send
+    channel: {$ref: '#/channels/documentReceived'}
+    messages:
+      - $ref: '#/channels/documentReceived/messages/DocumentReceived'
+  publishApplicationSubmitted:
+    action: send
+    channel: {$ref: '#/channels/applicationSubmitted'}
+    messages:
+      - $ref: '#/channels/applicationSubmitted/messages/ApplicationSubmitted'
+  consumeApplicationSubmitted:
+    action: receive
+    channel: {$ref: '#/channels/applicationSubmitted'}
+    messages:
+      - $ref: '#/channels/applicationSubmitted/messages/ApplicationSubmitted'
+  startWorkflowFromApplicationSubmitted:
+    action: receive
+    summary: Independent workflow-start-submissions consumer group durably receives submissions and starts Operaton asynchronously. Supplements and replay never restart an existing case process.
+    channel: {$ref: '#/channels/applicationSubmitted'}
+    messages:
+      - $ref: '#/channels/applicationSubmitted/messages/ApplicationSubmitted'
   publishApplicationStatusChanged:
     action: send
     channel:
@@ -29,6 +59,38 @@ operations:
       - $ref: '#/channels/applicationStatusChanged/messages/ApplicationStatusChanged'
 components:
   messages:
+    DocumentReceived:
+      name: DocumentReceived
+      description: Persisted attachment receipt; BAS starts metadata and document OCR immediately. Dossier-level analysis waits for a committed submitted document snapshot and ready sources.
+      payload:
+        type: object
+        additionalProperties: false
+        required: [eventId, caseId, documentId, occurredAt, correlationId]
+        properties:
+          eventId: {type: string, format: uuid}
+          caseId: {type: string, format: uuid}
+          documentId: {type: string, format: uuid}
+          occurredAt: {type: string, format: date-time}
+          correlationId: {type: string, minLength: 1, maxLength: 100}
+          traceparent: {type: string, maxLength: 100}
+    ApplicationSubmitted:
+      name: ApplicationSubmitted
+      description: Final submission or submitted supplement. Independent consumer groups deliver the committed document snapshot to BAS and initiate the Operaton process through the workflow-start adapter. Duplicate events and later supplements do not restart the process. Contains no personal or medical payload.
+      payload:
+        type: object
+        additionalProperties: false
+        required: [eventId, caseId, applicationId, occurredAt, correlationId, documentIds]
+        properties:
+          eventId: {type: string, format: uuid}
+          caseId: {type: string, format: uuid}
+          applicationId: {type: string, format: uuid}
+          traceparent: {type: string, maxLength: 100}
+          occurredAt: {type: string, format: date-time}
+          correlationId: {type: string, minLength: 1, maxLength: 100}
+          documentIds:
+            type: array
+            uniqueItems: true
+            items: {type: string, format: uuid}
     ApplicationStatusChanged:
       name: ApplicationStatusChanged
       title: Application status changed

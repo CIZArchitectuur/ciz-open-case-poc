@@ -1,0 +1,40 @@
+openapi: 3.0.3
+info:
+  title: CIZ document pipeline integration subset
+  version: 0.1.0
+  description: Consumer-owned subset of upstream endpoints (ADR-0022); provider does not publish this contract.
+paths:
+  /api/process_pdfs:
+    post:
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [pdfs]
+              properties:
+                pdfs: {type: array, items: {type: string, format: binary}}
+                pipeline_config: {type: string}
+      responses:
+        '200': {description: Submitted job, content: {application/json: {schema: {type: object, required: [job_id], properties: {job_id: {type: string}}}}}}
+        '202': {description: Submitted simulation job}
+  /api/process_status/{jobId}:
+    get:
+      parameters:
+        - {name: jobId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Snapshot with status, run_id and model_id; logs must not be forwarded, content: {application/json: {schema: {type: object}}}}
+  /api/run/{runId}/documents:
+    get:
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Documents index with doc_key, content: {application/json: {schema: {type: object}}}}
+  /api/run/{runId}/document/{docKey}/ocr:
+    get:
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string}}
+        - {name: docKey, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OCR sidecar with classification_units and errors, content: {application/json: {schema: {type: object}}}}

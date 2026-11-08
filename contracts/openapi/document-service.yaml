@@ -4,6 +4,25 @@ info:
   version: 0.1.0
   description: Provider-neutral document storage API backed by the S3 protocol.
 paths:
+  /documents/artifacts:
+    post:
+      operationId: uploadArtifact
+      summary: Internal JSON OCR provenance artifact; never a browser upload route
+      parameters:
+        - {name: caseId, in: query, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '201':
+          description: Artifact metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Document'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
   /documents:
     post:
       operationId: uploadDocument

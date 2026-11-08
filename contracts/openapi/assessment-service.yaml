@@ -1,0 +1,96 @@
+openapi: 3.0.3
+info: {title: Assessment and decision domain, version: 1.0.0}
+paths:
+  /cases/{caseId}/policy-evaluations:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+    get:
+      operationId: listPolicyEvaluations
+      responses:
+        '200':
+          description: Ordered domain history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: './case-service.yaml#/components/schemas/PolicyEvaluation'}
+    post:
+      operationId: savePolicyEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './case-service.yaml#/components/schemas/PolicyEvaluation'}
+      responses:
+        '204': {description: Stored idempotently}
+  /cases/{caseId}/medical-assessments:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+    get:
+      operationId: listMedicalAssessments
+      responses:
+        '200':
+          description: Ordered domain history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: './case-service.yaml#/components/schemas/MedicalAssessment'}
+    post:
+      operationId: saveMedicalAssessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './case-service.yaml#/components/schemas/MedicalAssessment'}
+      responses:
+        '204': {description: Stored idempotently}
+  /cases/{caseId}/decisions:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+    get:
+      operationId: listDecisions
+      responses:
+        '200':
+          description: Ordered domain history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: './case-service.yaml#/components/schemas/Decision'}
+    post:
+      operationId: saveDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './case-service.yaml#/components/schemas/Decision'}
+      responses:
+        '204': {description: Stored idempotently}
+  /cases/{caseId}/decisions/{decisionId}/dispatch:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+      - {name: decisionId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: recordDispatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sentAt]
+              properties:
+                sentAt: {type: string, format: date-time}
+      responses:
+        '204': {description: Dispatch recorded}
+  /legacy-import:
+    post:
+      operationId: importLegacyAssessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '204': {description: Historical records imported idempotently}

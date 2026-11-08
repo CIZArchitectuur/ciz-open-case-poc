@@ -1,0 +1,38 @@
+# Opt-in hosted inference. Documents are sent to OpenAI; local Ollama is not used.
+# Supply OPENAI_API_KEY in the shell environment; never commit it to Git.
+services:
+  pipeline-mock:
+    build:
+      context: .
+      dockerfile: document-pipeline/Dockerfile
+      secrets: [github_token]
+    environment:
+      PIPELINE_MODEL_BACKEND: ${PIPELINE_MODEL_BACKEND:-cloud}
+      CLOUD_LLM_BASE_URL: ${CLOUD_LLM_BASE_URL:-https://api.openai.com/v1}
+      CLOUD_LLM_MODEL: ${CLOUD_LLM_MODEL:-gpt-6.1-sol}
+      CLOUD_LLM_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in your shell before starting this overlay}
+      CLOUD_LLM_SUPPORTS_VISION: ${CLOUD_LLM_SUPPORTS_VISION:-true}
+      USE_AZURE_STORAGE: ${USE_AZURE_STORAGE:-false}
+      DATA_SENSITIVE_DIR: ${DATA_SENSITIVE_DIR:-/data}
+    volumes: [openai-pipeline-data:/data]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost',8080),timeout=5).close()"]
+      interval: 10s
+      timeout: 6s
+      retries: 30
+    # Upstream diagnostic logs may contain document content.
+    logging: {driver: none}
+  document-structuring-adapter:
+    environment:
+      PIPELINE_BASE_URL: http://kong:8000/internal/document-pipeline
+      PIPELINE_VERSION: ${PIPELINE_VERSION:-a18b0c9-openai-gpt-6.1-sol}
+      PIPELINE_MOCK: "false"
+      PIPELINE_CONFIG_JSON: '{"ocr":{"enabled":true,"backend":"legacy"},"classification":{"enabled":false},"client_validation":{"enabled":false},"clinical_tags":{"enabled":false},"llm_judge":{"enabled":false},"metadata":{"enabled":false},"subdoc_review":{"enabled":false},"subdocuments":{"enabled":true,"mode":"stream","embedding":{"enabled":false},"stream":{"max_image_side":768,"max_tokens":350,"escalation_enabled":false,"coherence_review":false,"reorder_proposals":false,"verify_midpage":false}},"subtypes":{"enabled":false},"subtype_summarizer":{"enabled":false},"subtype_metadata_extractor":{"enabled":false},"bsn":{"enabled":false},"llm_models":{"default":"gpt-6.1-sol","overrides":{}},"model_cache_dir":"/data/models"}'
+  ui-demo:
+    environment:
+      EXPECT_REAL_OCR: "true"
+secrets:
+  github_token:
+    environment: GH_TOKEN
+volumes:
+  openai-pipeline-data:

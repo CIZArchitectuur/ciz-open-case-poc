@@ -30,13 +30,16 @@ public class ApplicationEntity extends PanacheEntityBase {
     @Column(name = "applicant_role", nullable = false, length = 40)
     public String applicantRole;
 
+    @Column(name = "submission_channel", nullable = false, length = 30)
+    public String submissionChannel;
+
     @Column(name = "signed_by", nullable = false, length = 60)
     public String signedBy;
 
     @Column(name = "authorization_signed_by_client")
     public Boolean authorizationSignedByClient;
 
-    @Column(name = "submitted_at", nullable = false)
+    @Column(name = "submitted_at")
     public Instant submittedAt;
 
     @Column(name = "applicant_status", nullable = false, length = 40)

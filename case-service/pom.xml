@@ -60,6 +60,23 @@
         <version>${openapi-generator.version}</version>
         <executions>
           <execution>
+            <id>generate-impairment-analysis-client</id>
+            <goals><goal>generate</goal></goals>
+            <configuration>
+              <inputSpec>${project.basedir}/../contracts/openapi/impairment-analysis.yaml</inputSpec>
+              <output>${project.build.directory}/generated-sources/impairment-analysis</output>
+              <generatorName>java</generatorName><library>microprofile</library>
+              <apiPackage>nl.ciz.caseapi.generated.impairmentanalysis.api</apiPackage>
+              <modelPackage>nl.ciz.caseapi.generated.impairmentanalysis.model</modelPackage>
+              <generateApiTests>false</generateApiTests><generateModelTests>false</generateModelTests>
+              <configOptions>
+                <configKey>impairment-analysis-api</configKey><serializationLibrary>jackson</serializationLibrary>
+                <dateLibrary>java8</dateLibrary><useJakartaEe>true</useJakartaEe><openApiNullable>false</openApiNullable>
+                <microprofileRestClientVersion>3.0</microprofileRestClientVersion>
+              </configOptions>
+            </configuration>
+          </execution>
+          <execution>
             <id>generate-case-server</id>
             <goals><goal>generate</goal></goals>
             <configuration>
@@ -132,6 +149,54 @@
                 <useJakartaEe>true</useJakartaEe>
               </configOptions>
             </configuration>
+          </execution><execution>
+            <id>generate-assessment-client</id>
+            <goals><goal>generate</goal></goals>
+            <configuration>
+              <inputSpec>${project.basedir}/../contracts/openapi/assessment-service.yaml</inputSpec>
+              <output>${project.build.directory}/generated-sources/assessment</output>
+              <generatorName>java</generatorName>
+              <library>microprofile</library>
+              <apiPackage>nl.ciz.caseapi.generated.assessment.api</apiPackage>
+              <modelPackage>nl.ciz.caseapi.generated.assessment.model</modelPackage>
+              <generateApiTests>false</generateApiTests>
+              <generateModelTests>false</generateModelTests>
+              <generateSupportingFiles>true</generateSupportingFiles>
+              <configOptions>
+                <configKey>assessment-api</configKey>
+                <dateLibrary>java8</dateLibrary>
+                <interfaceOnly>true</interfaceOnly>
+                <microprofileRestClientVersion>3.0</microprofileRestClientVersion>
+                <openApiNullable>false</openApiNullable>
+                <serializationLibrary>jackson</serializationLibrary>
+                <useBeanValidation>true</useBeanValidation>
+                <useJakartaEe>true</useJakartaEe>
+              </configOptions>
+            </configuration>
+          </execution><execution>
+            <id>generate-bas-client</id>
+            <goals><goal>generate</goal></goals>
+            <configuration>
+              <inputSpec>${project.basedir}/../contracts/openapi/bas-service.yaml</inputSpec>
+              <output>${project.build.directory}/generated-sources/bas</output>
+              <generatorName>java</generatorName>
+              <library>microprofile</library>
+              <apiPackage>nl.ciz.caseapi.generated.bas.api</apiPackage>
+              <modelPackage>nl.ciz.caseapi.generated.bas.model</modelPackage>
+              <generateApiTests>false</generateApiTests>
+              <generateModelTests>false</generateModelTests>
+              <generateSupportingFiles>true</generateSupportingFiles>
+              <configOptions>
+                <configKey>bas-api</configKey>
+                <dateLibrary>java8</dateLibrary>
+                <interfaceOnly>true</interfaceOnly>
+                <microprofileRestClientVersion>3.0</microprofileRestClientVersion>
+                <openApiNullable>false</openApiNullable>
+                <serializationLibrary>jackson</serializationLibrary>
+                <useBeanValidation>true</useBeanValidation>
+                <useJakartaEe>true</useJakartaEe>
+              </configOptions>
+            </configuration>
           </execution>
         <execution>
           <id>generate-policy-client</id>
@@ -183,6 +248,31 @@
             </configOptions>
           </configuration>
         </execution>
+        <execution>
+          <id>generate-document-structuring-client</id>
+          <goals><goal>generate</goal></goals>
+          <configuration>
+            <inputSpec>${project.basedir}/../contracts/openapi/document-structuring.yaml</inputSpec>
+            <output>${project.build.directory}/generated-sources/document-structuring</output>
+            <generatorName>java</generatorName>
+            <library>microprofile</library>
+            <apiPackage>nl.ciz.caseapi.generated.documentstructuring.api</apiPackage>
+            <modelPackage>nl.ciz.caseapi.generated.documentstructuring.model</modelPackage>
+            <generateApiTests>false</generateApiTests>
+            <generateModelTests>false</generateModelTests>
+            <generateSupportingFiles>true</generateSupportingFiles>
+            <configOptions>
+              <configKey>document-structuring-api</configKey>
+              <dateLibrary>java8</dateLibrary>
+              <interfaceOnly>true</interfaceOnly>
+              <microprofileRestClientVersion>3.0</microprofileRestClientVersion>
+              <openApiNullable>false</openApiNullable>
+              <serializationLibrary>jackson</serializationLibrary>
+              <useBeanValidation>true</useBeanValidation>
+              <useJakartaEe>true</useJakartaEe>
+            </configOptions>
+          </configuration>
+        </execution>
         </executions>
       </plugin>
       <plugin>
@@ -195,12 +285,14 @@
             <phase>generate-sources</phase>
             <goals><goal>add-source</goal></goals>
             <configuration>
-              <sources>
+              <sources><source>${project.build.directory}/generated-sources/assessment/src/main/java</source><source>${project.build.directory}/generated-sources/bas/src/main/java</source>
                 <source>${project.build.directory}/generated-sources/openapi/src/gen/java</source>
                 <source>${project.build.directory}/generated-sources/operaton/src/main/java</source>
                 <source>${project.build.directory}/generated-sources/document/src/main/java</source>
                 <source>${project.build.directory}/generated-sources/policy/src/main/java</source>
                 <source>${project.build.directory}/generated-sources/address-validation/src/main/java</source>
+                <source>${project.build.directory}/generated-sources/document-structuring/src/main/java</source>
+                <source>${project.build.directory}/generated-sources/impairment-analysis/src/main/java</source>
               </sources>
             </configuration>
           </execution>

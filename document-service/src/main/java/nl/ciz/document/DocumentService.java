@@ -27,8 +27,17 @@ public class DocumentService {
 
     @Transactional
     public Document upload(UUID caseId, String fileName, String contentType, File source) {
+        return store(caseId, fileName, contentType, source, false);
+    }
+
+    @Transactional
+    public Document uploadArtifact(UUID caseId, File source) {
+        return store(caseId, "ocr-provenance.json", "application/json", source, true);
+    }
+
+    private Document store(UUID caseId, String fileName, String contentType, File source, boolean artifact) {
         var normalizedName = validateFileName(java.net.URLDecoder.decode(fileName, java.nio.charset.StandardCharsets.UTF_8));
-        var normalizedType = validateContentType(contentType);
+        var normalizedType = artifact ? "application/json" : validateContentType(contentType);
 
         final byte[] bytes;
         try {
@@ -38,6 +47,10 @@ public class DocumentService {
         }
         if (bytes.length == 0 || bytes.length > MAX_SIZE) {
             throw new InvalidDocumentException("Het bestand moet tussen 1 byte en 10 MB groot zijn.");
+        }
+        if (artifact) {
+            try { new com.fasterxml.jackson.databind.ObjectMapper().readTree(bytes); }
+            catch (IOException invalid) { throw new InvalidDocumentException("Ongeldig JSON-artefact."); }
         }
 
         var entity = new DocumentEntity();
@@ -56,7 +69,7 @@ public class DocumentService {
     }
 
     public List<Document> list(UUID caseId) {
-        return DocumentEntity.<DocumentEntity>list("caseId = ?1 order by createdAt", caseId).stream()
+        return DocumentEntity.<DocumentEntity>list("caseId = ?1 and contentType <> 'application/json' order by createdAt", caseId).stream()
                 .map(DocumentService::toModel).toList();
     }
 

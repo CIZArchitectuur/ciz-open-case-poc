@@ -1,7 +1,9 @@
 import os
 import copy
 import uuid
+import time
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import requests
 import yaml
@@ -31,14 +33,19 @@ def schema(name):
         }
     value = copy.deepcopy(value)
 
-    def resolve_refs(node):
+    def resolve_refs(node, document=spec):
         if isinstance(node, dict):
             if "$ref" in node:
+                if node["$ref"].startswith("./"):
+                    file, pointer = node["$ref"].split("#", 1)
+                    with open(Path("contracts/openapi") / file, encoding="utf-8") as source:
+                        external = yaml.safe_load(source)
+                    return resolve_refs(copy.deepcopy(external["components"]["schemas"][pointer.split("/")[-1]]), external)
                 referenced = node["$ref"].split("/")[-1]
-                return resolve_refs(copy.deepcopy(spec["components"]["schemas"][referenced]))
-            return {key: resolve_refs(child) for key, child in node.items()}
+                return resolve_refs(copy.deepcopy(document["components"]["schemas"][referenced]), document)
+            return {key: resolve_refs(child, document) for key, child in node.items()}
         if isinstance(node, list):
-            return [resolve_refs(child) for child in node]
+            return [resolve_refs(child, document) for child in node]
         return node
 
     value = resolve_refs(value)
@@ -117,7 +124,7 @@ def test_staff_openapi_operations_declare_bearer_security():
     secured = [
         ("/tasks", "get"), ("/tasks/{taskId}/complete", "post"),
         ("/tasks/{taskId}/intake-form", "get"), ("/tasks/{taskId}/medical-assessment-form", "get"),
-        ("/cases/{caseId}/documents", "post"), ("/cases/{caseId}/documents", "get"),
+        ("/cases/{caseId}/documents", "get"),
         ("/cases/{caseId}/documents/{documentId}/content", "get"),
         ("/cases/{caseId}/policy-evaluations", "get"),
         ("/cases/{caseId}/medical-assessments", "get"),
@@ -150,10 +157,14 @@ def test_document_and_task_responses_match_openapi_schemas():
 
     anonymous_documents = requests.get(f"{BASE_URL}/cases/{case_id}/documents", timeout=10)
     assert anonymous_documents.status_code == 401
-    listed_documents = requests.get(f"{BASE_URL}/cases/{case_id}/documents", headers=auth_headers("ciz-medewerker"), timeout=10)
+    listed_documents = requests.get(f"{BASE_URL}/cases/{case_id}/documents", headers=auth_headers("beoordelaar"), timeout=10)
     assert listed_documents.status_code == 200
 
-    listed = requests.get(f"{BASE_URL}/cases/{case_id}/tasks", timeout=10)
+    for _ in range(60):
+        listed = requests.get(f"{BASE_URL}/cases/{case_id}/tasks", timeout=10)
+        if listed.status_code == 200 and listed.json():
+            break
+        time.sleep(1)
     assert listed.status_code == 200
     assert len(listed.json()) == 1
     assert listed.json()[0]["type"] == "REGISTRATION_ACCEPTANCE"
@@ -162,7 +173,7 @@ def test_document_and_task_responses_match_openapi_schemas():
     queue = requests.get(
         f"{BASE_URL}/tasks",
         params={"status": "OPEN", "type": "REGISTRATION_ACCEPTANCE"},
-        headers=auth_headers("ciz-medewerker"),
+        headers=auth_headers("beoordelaar"),
         timeout=10,
     )
     assert queue.status_code == 200
@@ -172,13 +183,13 @@ def test_document_and_task_responses_match_openapi_schemas():
 
     completed = requests.post(
         f"{BASE_URL}/tasks/{listed.json()[0]['taskId']}/complete",
-        headers=auth_headers("ciz-medewerker"),
+        headers=auth_headers("beoordelaar"),
         json={"facts": COMPLETE_FACTS, "registrationOutcome": "ACCEPTED"}, timeout=10,
     )
     assert completed.status_code == 200
     Draft202012Validator(schema("CaseTask"), format_checker=FormatChecker()).validate(completed.json())
 
-    evaluations = requests.get(f"{BASE_URL}/cases/{case_id}/policy-evaluations", headers=auth_headers("ciz-medewerker"), timeout=10)
+    evaluations = requests.get(f"{BASE_URL}/cases/{case_id}/policy-evaluations", headers=auth_headers("beoordelaar"), timeout=10)
     assert evaluations.status_code == 200
     assert len(evaluations.json()) == 1
     Draft202012Validator(schema("PolicyEvaluation"), format_checker=FormatChecker()).validate(evaluations.json()[0])
@@ -209,15 +220,15 @@ def test_bpmn_process_exposes_roles_and_wlz_routes():
         node.text for node in lane.findall("bpmn:flowNodeRef", namespaces)
     } for lane in process.findall("bpmn:laneSet/bpmn:lane", namespaces)}
     assert "Aanvrager" in lanes
-    assert "WP-AO / CIZ-medewerker" in lanes
-    assert "WP-Wlz / Beoordelaar" in lanes
+    assert "AO · documentupload buiten de taakflow" in lanes
+    assert "Onderzoeker" in lanes
     roles = {
-        "registerAndCheckApplication": "ciz-medewerker",
-        "requestSupplement": "ciz-medewerker",
+        "registerAndCheckApplication": "beoordelaar",
+        "requestSupplement": "beoordelaar",
         "provideSupplement": "aanvrager",
         "triageApplication": "beoordelaar",
         "investigateAndDecide": "beoordelaar",
-        "sendOutgoingDecision": "ciz-medewerker",
+        "sendOutgoingDecision": "beoordelaar",
     }
     for task_id, group in roles.items():
         task = process.find(f"bpmn:userTask[@id='{task_id}']", namespaces)

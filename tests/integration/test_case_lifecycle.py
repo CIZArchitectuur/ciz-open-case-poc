@@ -23,7 +23,9 @@ def create_case():
         "permanentSupervision": True,
     }, timeout=10)
     assert response.status_code == 201
-    return response.json()
+    case = response.json()
+    wait_for_case_tasks(case['caseId'])
+    return case
 
 
 def test_staff_api_rejects_anonymous_and_wrong_role_access():
@@ -34,7 +36,7 @@ def test_staff_api_rejects_anonymous_and_wrong_role_access():
 
     case = create_case()
     task = case_tasks(case["caseId"])[0]
-    reviewer = auth_headers("beoordelaar")
+    reviewer = auth_headers("ciz-medewerker")
     forbidden = requests.get(f"{BASE_URL}/tasks/{task['taskId']}/intake-form", headers=reviewer, timeout=10)
     assert forbidden.status_code == 403
     forbidden_completion = requests.post(
@@ -44,7 +46,7 @@ def test_staff_api_rejects_anonymous_and_wrong_role_access():
     assert forbidden_completion.status_code == 403
 
     ciz_queue = requests.get(f"{BASE_URL}/tasks", params={"status": "OPEN", "type": "REGISTRATION_ACCEPTANCE"},
-                             headers=auth_headers("ciz-medewerker"), timeout=10)
+                             headers=auth_headers("beoordelaar"), timeout=10)
     assert ciz_queue.status_code == 200
     assert any(item["caseId"] == case["caseId"] for item in ciz_queue.json())
 
@@ -55,9 +57,18 @@ def case_tasks(case_id):
     return response.json()
 
 
+def wait_for_case_tasks(case_id):
+    for _ in range(60):
+        tasks = case_tasks(case_id)
+        if tasks:
+            return tasks
+        time.sleep(1)
+    raise AssertionError('Kafka submission did not create the workflow task')
+
+
 def complete(case_id, task_type, body):
     task = next(task for task in case_tasks(case_id) if task["type"] == task_type and task["status"] == "OPEN")
-    role = "ciz-medewerker" if task_type in {"REGISTRATION_ACCEPTANCE", "REQUEST_ADDITIONAL_INFORMATION", "OUTGOING_COMMUNICATION"} else "beoordelaar"
+    role = "beoordelaar"
     response = requests.post(f"{BASE_URL}/tasks/{task['taskId']}/complete", headers=auth_headers(role), json=body, timeout=10)
     assert response.status_code == 200, response.text
     return response.json()
@@ -72,7 +83,7 @@ def register(case_id, outcome="ACCEPTED", facts=None, motivation=None):
     }
     if motivation is not None:
         payload["decisionMotivation"] = motivation
-    response = requests.post(f"{BASE_URL}/tasks/{task['taskId']}/complete", headers=auth_headers("ciz-medewerker"), json=payload, timeout=10)
+    response = requests.post(f"{BASE_URL}/tasks/{task['taskId']}/complete", headers=auth_headers("beoordelaar"), json=payload, timeout=10)
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -163,19 +174,19 @@ def test_supplement_is_returned_by_applicant_and_loops_back_to_registration():
     initial = case_tasks(case_id)
     assert [(task["type"], task["status"]) for task in initial] == [("REGISTRATION_ACCEPTANCE", "OPEN")]
     registration_task = initial[0]
-    form = requests.get(f"{BASE_URL}/tasks/{registration_task['taskId']}/intake-form", headers=auth_headers("ciz-medewerker"), timeout=10)
+    form = requests.get(f"{BASE_URL}/tasks/{registration_task['taskId']}/intake-form", headers=auth_headers("beoordelaar"), timeout=10)
     assert form.status_code == 200
 
-    evaluation = requests.post(f"{BASE_URL}/tasks/{registration_task['taskId']}/complete", headers=auth_headers("ciz-medewerker"), json={
+    evaluation = requests.post(f"{BASE_URL}/tasks/{registration_task['taskId']}/complete", headers=auth_headers("beoordelaar"), json={
         "facts": COMPLETE_FACTS | {"medische_informatie_aanwezig": False},
         "registrationOutcome": "REQUEST_ADDITIONAL_INFORMATION",
     }, timeout=10)
     assert evaluation.status_code == 200
-    assert requests.get(f"{BASE_URL}/cases/{case_id}/policy-evaluations", headers=auth_headers("ciz-medewerker"), timeout=10).json()[-1]["canBeTakenIntoConsideration"] is False
+    assert requests.get(f"{BASE_URL}/cases/{case_id}/policy-evaluations", headers=auth_headers("beoordelaar"), timeout=10).json()[-1]["canBeTakenIntoConsideration"] is False
 
     request_task = next(task for task in case_tasks(case_id) if task["type"] == "REQUEST_ADDITIONAL_INFORMATION")
     request_text = "Lever de ontbrekende medische informatie aan."
-    requested = requests.post(f"{BASE_URL}/tasks/{request_task['taskId']}/complete", headers=auth_headers("ciz-medewerker"),
+    requested = requests.post(f"{BASE_URL}/tasks/{request_task['taskId']}/complete", headers=auth_headers("beoordelaar"),
                               json={"supplementText": request_text}, timeout=10)
     assert requested.status_code == 200
     applicant_task = next(task for task in case_tasks(case_id) if task["type"] == "SUPPLEMENT_PROVISION")

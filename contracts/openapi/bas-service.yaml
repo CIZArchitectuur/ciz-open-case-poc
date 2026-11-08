@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info: {title: BAS dossier analysis, version: 1.0.0}
+paths:
+  /cases/{caseId}/runs:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+    post:
+      operationId: startBasRun
+      summary: Reusable BAS invocation; selects technical components and preserves a versioned document snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BasRunRequest'}
+      responses:
+        '202':
+          description: Durable work queued idempotently by runId
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BasRun'}
+    get:
+      operationId: listBasRuns
+      responses:
+        '200':
+          description: Processing versions and readiness
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/BasRun'}}
+  /cases/{caseId}/documents/{documentId}/structuring:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+      - {name: documentId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: startDocumentStructuring
+      responses:
+        '202':
+          description: Extraction started
+          content:
+            application/json:
+              schema: {$ref: './case-service.yaml#/components/schemas/DocumentExtraction'}
+    get:
+      operationId: getDocumentStructuring
+      responses:
+        '200':
+          description: Extraction result
+          content:
+            application/json:
+              schema: {$ref: './case-service.yaml#/components/schemas/DocumentExtraction'}
+  /cases/{caseId}/documents/{documentId}/structuring/review:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+      - {name: documentId, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: X-Actor-ID, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
+    post:
+      operationId: reviewDocumentStructuring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './case-service.yaml#/components/schemas/DocumentReview'}
+      responses:
+        '200':
+          description: Reviewed extraction
+          content:
+            application/json:
+              schema: {$ref: './case-service.yaml#/components/schemas/DocumentExtraction'}
+  /cases/{caseId}/impairment-analyses:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+    post:
+      operationId: startImpairmentAnalysis
+      responses:
+        '202':
+          description: Analysis queued
+          content:
+            application/json:
+              schema: {$ref: './case-service.yaml#/components/schemas/DossierAnalysis'}
+    get:
+      operationId: listImpairmentAnalyses
+      responses:
+        '200':
+          description: Analysis history; current source versions first, newest first within current and stale versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: './case-service.yaml#/components/schemas/DossierAnalysis'}
+  /cases/{caseId}/impairment-analyses/{analysisId}/review:
+    parameters:
+      - {$ref: './case-service.yaml#/components/parameters/CaseId'}
+      - {name: analysisId, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: X-Actor-ID, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
+    post:
+      operationId: reviewImpairmentAnalysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './case-service.yaml#/components/schemas/AnalysisReview'}
+      responses:
+        '200':
+          description: Reviewed analysis
+          content:
+            application/json:
+              schema: {$ref: './case-service.yaml#/components/schemas/DossierAnalysis'}
+  /legacy-import:
+    post:
+      operationId: importLegacyBas
+      description: Idempotent migration of historical BAS records, retaining original identifiers, timestamps and audit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204': {description: Imported or already present}
+components:
+  schemas:
+    BasRunRequest:
+      type: object
+      additionalProperties: false
+      required: [runId, documentIds, components, reason]
+      properties:
+        runId: {type: string, format: uuid}
+        documentIds: {type: array, uniqueItems: true, maxItems: 100, items: {type: string, format: uuid}}
+        components:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [METADATA, OCR, DOSSIER]}
+        reason: {type: string, enum: [DOCUMENT_RECEIVED, APPLICATION_SUBMITTED, MEDICAL_SUPPLEMENT, MANUAL_RERUN]}
+        forceRerun: {type: boolean, default: false}
+    BasRun:
+      type: object
+      required: [runId, caseId, documentIds, components, reason, status, createdAt]
+      properties:
+        runId: {type: string, format: uuid}
+        caseId: {type: string, format: uuid}
+        documentIds: {type: array, items: {type: string, format: uuid}}
+        components: {type: array, items: {type: string}}
+        reason: {type: string}
+        status: {type: string, enum: [QUEUED, EXTRACTING, WAITING_FOR_SOURCES, ANALYSING, READY, FAILED]}
+        createdAt: {type: string, format: date-time}
+        analysisId: {type: string, format: uuid, nullable: true}
+        errorCode: {type: string, nullable: true}

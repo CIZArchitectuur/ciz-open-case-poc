@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info:
+  title: Document structuring adapter
+  version: 0.1.0
+  description: Internal boundary for the CIZ PDF pipeline. Results are untrusted and never rule facts.
+paths:
+  /jobs:
+    post:
+      operationId: startStructuring
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: {type: string, format: binary}
+      responses:
+        '202':
+          description: Pipeline accepted one PDF; submission is not retried automatically
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StructuringResult'}
+        '400': {description: Invalid PDF}
+        '503': {description: Pipeline unavailable; safe generic error only}
+  /jobs/{jobId}:
+    get:
+      operationId: getStructuring
+      parameters:
+        - {name: jobId, in: path, required: true, schema: {type: string, pattern: '^[a-zA-Z0-9_-]{1,100}$'}}
+      responses:
+        '200':
+          description: Normalized result without upstream logs or filesystem paths
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StructuringResult'}
+        '503': {description: Pipeline unavailable}
+components:
+  schemas:
+    StructuringResult:
+      type: object
+      required: [jobId, status, providerVersion, mock, fragments]
+      properties:
+        jobId: {type: string}
+        runId: {type: string, nullable: true}
+        status: {type: string, enum: [PROCESSING, READY, FAILED]}
+        providerVersion: {type: string}
+        modelId: {type: string, nullable: true}
+        mock: {type: boolean}
+        docKey: {type: string, nullable: true}
+        classificationUnits:
+          type: array
+          description: Original unsplit upstream units; provenance must be preserved for downstream classifiers.
+          items: {type: object, additionalProperties: true}
+        fragments:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/ExtractedFragment'}
+    ExtractedFragment:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string, maxLength: 10000}
+        subdocumentId: {type: string, nullable: true}
+        page: {type: integer, minimum: 1, nullable: true}
+        pages: {type: array, nullable: true, items: {type: integer, minimum: 1}}
+        unitId: {type: string, nullable: true}

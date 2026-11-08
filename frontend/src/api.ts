@@ -1,6 +1,42 @@
 import type { AddressValidationResult, Case, CaseDocument, CaseTask, CreateCasePayload, IntakeForm, MedicalAssessment, PolicyEvaluation, TaskCompletionInput, TaskStatus, TaskType } from './types';
 
 type Problem = { title?: string; detail?: string };
+export type DossierAnalysis = import('./generated/case-api').components['schemas']['DossierAnalysis'];
+export type BasRun = import('./generated/case-api').components['schemas']['BasRun'];
+export async function getBasRuns(caseId: string) {
+  return parseResponse<BasRun[]>(await apiFetch(`/api/cases/${encodeURIComponent(caseId)}/bas-runs`));
+}
+export type AnalysisReview = import('./generated/case-api').components['schemas']['AnalysisReview'];
+export type ReviewedFinding = import('./generated/case-api').components['schemas']['ReviewedFinding'];
+const analysisUrl = (id: string) => `/api/cases/${encodeURIComponent(id)}/impairment-analyses`;
+export async function getAnalyses(caseId: string) {
+  return parseResponse<DossierAnalysis[]>(await apiFetch(analysisUrl(caseId)));
+}
+export async function startAnalysis(caseId: string) {
+  return parseResponse<DossierAnalysis>(await apiFetch(analysisUrl(caseId), {method: 'POST'}));
+}
+export async function reviewAnalysis(caseId: string, id: string, review: AnalysisReview) {
+  return parseResponse<DossierAnalysis>(await apiFetch(`${analysisUrl(caseId)}/${id}/review`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(review)
+  }));
+}
+export async function getCases() { return parseResponse<Case[]>(await apiFetch('/api/cases')); }
+export type DocumentExtraction = import('./generated/case-api').components['schemas']['DocumentExtraction'];
+const extractionUrl = (caseId: string, documentId: string) =>
+  `/api/cases/${encodeURIComponent(caseId)}/documents/${encodeURIComponent(documentId)}/structuring`;
+export async function startDocumentExtraction(caseId: string, documentId: string) {
+  return parseResponse<DocumentExtraction>(await apiFetch(extractionUrl(caseId, documentId), {method: 'POST'}));
+}
+export async function getDocumentExtraction(caseId: string, documentId: string) {
+  const response = await apiFetch(extractionUrl(caseId, documentId));
+  if (response.status === 404) return null;
+  return parseResponse<DocumentExtraction>(response);
+}
+export async function reviewDocumentExtraction(caseId: string, documentId: string, text: string) {
+  return parseResponse<DocumentExtraction>(await apiFetch(extractionUrl(caseId, documentId) + '/review', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, confirmed: true})
+  }));
+}
 
 let accessTokenSupplier: () => string | undefined = () => undefined;
 
@@ -30,6 +66,16 @@ export async function createCase(payload: CreateCasePayload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   }));
+}
+
+export async function createCaseDraft(payload: CreateCasePayload) {
+  return parseResponse<Case>(await apiFetch('/api/cases/drafts', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+  }));
+}
+
+export async function submitCase(caseId: string) {
+  return parseResponse<Case>(await apiFetch(`/api/cases/${encodeURIComponent(caseId)}/submit`, {method: 'POST'}));
 }
 
 export async function validateAddress(country: string, postalCode: string, houseNumber: string) {

@@ -107,6 +107,10 @@ components:
         required: { type: boolean }
         label: { type: string }
         description: { type: string, nullable: true }
+        groupId: { type: string }
+        groupTitle: { type: string }
+        groupDescription: { type: string }
+        groupOrder: { type: integer }
     IntakeEvaluationRequest:
       type: object
       additionalProperties: false

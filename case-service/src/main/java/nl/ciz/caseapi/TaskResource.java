@@ -57,8 +57,8 @@ public class TaskResource implements TasksApi {
 
     private boolean hasTaskRole(CaseTask.TypeEnum type) {
         var role = switch (type) {
-            case REGISTRATION_ACCEPTANCE, REQUEST_ADDITIONAL_INFORMATION, OUTGOING_COMMUNICATION -> "ciz-medewerker";
-            case TRIAGE, WLZ_INVESTIGATION_DECISION -> "beoordelaar";
+            case REGISTRATION_ACCEPTANCE, REQUEST_ADDITIONAL_INFORMATION, OUTGOING_COMMUNICATION,
+                 TRIAGE, WLZ_INVESTIGATION_DECISION -> "beoordelaar";
             case SUPPLEMENT_PROVISION -> null;
         };
         return role != null && identity.getRoles().contains(role);

@@ -17,6 +17,16 @@
       "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" },
       "protocolMappers": [
         {
+          "name": "Stable subject for review audit",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
           "name": "ciz-api audience",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",

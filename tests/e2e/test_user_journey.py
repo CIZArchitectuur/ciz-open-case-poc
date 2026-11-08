@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import uuid
 from urllib.parse import urljoin
 
@@ -21,7 +22,7 @@ def test_frontend_and_proxied_case_journey_are_available():
     assert anonymous_queue.status_code == 401
     for internal_path in ("workflow/engine", "rules/intake-form", "documents"):
         assert requests.get(f"{FRONTEND_URL}/api/{internal_path}", timeout=10).status_code == 404
-    for route in ("aanvrager", "beoordelaar", "ciz-medewerker"):
+    for route in ("aanvrager", "zorgaanbieder", "beoordelaar", "ciz-medewerker"):
         routed_page = requests.get(f"{FRONTEND_URL}/{route}", timeout=10)
         assert routed_page.status_code == 200
         assert "CIZ Open Case PoC" in routed_page.text
@@ -29,14 +30,14 @@ def test_frontend_and_proxied_case_journey_are_available():
     application = requests.get(urljoin(f"{FRONTEND_URL}/", script_path), timeout=10)
     assert application.status_code == 200
     assert "Aanvrager" in application.text
-    assert "Beoordelaar" in application.text
-    assert "CIZ-medewerker" in application.text
+    assert "Onderzoeker" in application.text
+    assert "AO" in application.text
     assert "Registreren en controleren" in application.text
-    assert "Document registreren" in application.text
+    assert "Document uploaden" in application.text
     assert "Registratie vastleggen" in application.text
     assert "Aanvulling opvragen" in application.text
     assert "Aanvulling versturen" in application.text
-    assert "Uitkomst triage" in application.text
+    assert "Kies de behandelroute" in application.text
     assert "Onderzoek en besluitvorming Wlz" in application.text
     assert "Beslissing verzenden" in application.text
     assert "RegelRecht" in application.text
@@ -84,18 +85,22 @@ def test_frontend_and_proxied_case_journey_are_available():
     assert registered.status_code == 201
     downloaded = requests.get(
         f"{FRONTEND_URL}/api/cases/{case_id}/documents/{registered.json()['documentId']}/content",
-        headers=auth_headers("ciz-medewerker"),
+        headers=auth_headers("beoordelaar"),
         timeout=10,
     )
     assert downloaded.status_code == 200
     assert downloaded.content == b"%PDF-1.4\nfictional e2e document\n%%EOF"
 
-    tasks = requests.get(f"{FRONTEND_URL}/api/cases/{case_id}/tasks", timeout=10)
+    for _ in range(60):
+        tasks = requests.get(f"{FRONTEND_URL}/api/cases/{case_id}/tasks", timeout=10)
+        if tasks.status_code == 200 and tasks.json():
+            break
+        time.sleep(1)
     assert tasks.status_code == 200
     assert tasks.json()[0]["type"] == "REGISTRATION_ACCEPTANCE"
     intake = requests.post(
         f"{FRONTEND_URL}/api/tasks/{tasks.json()[0]['taskId']}/complete",
-        headers=auth_headers("ciz-medewerker"),
+        headers=auth_headers("beoordelaar"),
         json={"facts": COMPLETE_FACTS, "registrationOutcome": "ACCEPTED"}, timeout=10,
     )
     assert intake.status_code == 200
@@ -127,7 +132,7 @@ def test_frontend_and_proxied_case_journey_are_available():
 
     after_review = requests.get(f"{FRONTEND_URL}/api/cases/{case_id}/tasks", timeout=10).json()
     decision = next(task for task in after_review if task["type"] == "OUTGOING_COMMUNICATION")
-    completed = requests.post(f"{FRONTEND_URL}/api/tasks/{decision['taskId']}/complete", headers=auth_headers("ciz-medewerker"), json={}, timeout=10)
+    completed = requests.post(f"{FRONTEND_URL}/api/tasks/{decision['taskId']}/complete", headers=auth_headers("beoordelaar"), json={}, timeout=10)
     assert completed.status_code == 200
     assert completed.json()["status"] == "COMPLETED"
     final = requests.get(f"{FRONTEND_URL}/api/cases/{case_id}", timeout=10).json()

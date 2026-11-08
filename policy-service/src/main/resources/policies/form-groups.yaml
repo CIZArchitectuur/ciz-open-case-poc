@@ -1,0 +1,35 @@
+# Presentation metadata only; required inputs and outcomes come from RegelRecht.
+intake:
+  - id: personal
+    title: Persoonsgegevens en adres
+    description: Controleer de gegevens die uit de aanvraag zijn overgenomen.
+    fields: [achternaam_aanwezig, voorletters_aanwezig, bsn_aanwezig, geboortedatum_aanwezig, straat_aanwezig, huisnummer_aanwezig, postcode_aanwezig, woonplaats_aanwezig, land_aanwezig, land_anders_aanwezig]
+  - id: insurance
+    title: Verzekering
+    description: Controleer de verzekeringsgegevens en eventuele uitzondering.
+    fields: [naam_zorgverzekeraar, polisnummer_aanwezig, uitzondering_op_verzekering]
+  - id: representation
+    title: Ondertekening en vertegenwoordiging
+    description: Controleer wie ondertekent en welke vertegenwoordiging is aangetoond.
+    fields: [aanvraag_vanuit_kloostergemeenschap, acute_zorgvraag_ondertekenen_niet_mogelijk, bevestiging_aanvraag_wettelijke_vertegenwoordiging_aanwezig, blijvende_fysieke_onmogelijkheid_ondertekenen, eerste_bron_client_kan_overzien, eerste_bron_machtiging_overzien, heeft_gemachtigde_wlz_aanvraag_ondertekend, heeft_gevolmachtigde_wlz_aanvraag_ondertekend, indicatiesteller_zeker_client_kan_overzien, indicatiesteller_zeker_machtiging_overzien, levenstestament_volmacht_of_beschikking_aanwezig, machtigingsformulier_aanwezig, rechterlijke_machtiging_of_ibs_aanwezig, tweede_bron_client_kan_overzien, tweede_bron_machtiging_overzien, wie_ondertekend, wie_ondertekende_machtigingsformulier]
+  - id: application
+    title: Aanvraaggegevens
+    description: Controleer de gevraagde zorg en de dagtekening.
+    fields: [dagtekening_aanvraag_aanwezig, gewenste_zorg_aanwezig]
+  - id: medical-source
+    title: Medische informatie en deskundige
+    description: Controleer de aanwezigheid, herkomst en deskundigheid van de medische informatie.
+    fallback: true
+medical:
+  - id: medical-evidence
+    title: Medische onderbouwing
+    description: Diagnose, behandeling, prognose en blijvende zorgbehoefte.
+    fields: [diagnose_vastgesteld, diagnose_door_ter_zake_kundige, behandeling_en_effect_beschreven, prognose_beschreven, blijvende_zorgbehoefte_onderbouwd]
+  - id: care
+    title: Benodigde zorg
+    description: De intensiteit en voortdurende beschikbaarheid van zorg.
+    fields: [permanent_toezicht_nodig, vierentwintig_uurs_zorg_nabij_nodig]
+  - id: advice
+    title: Advies en motivering
+    description: Medisch advies en onderbouwing van het professionele oordeel.
+    fallback: true

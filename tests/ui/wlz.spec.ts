@@ -1,4 +1,12 @@
 import { test, expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { readableDocumentText } from './documentText';
+
+test('OCR weergave toont leesbare tekst en geen ruwe JSON', () => {
+  expect(readableDocumentText('Eerste regel\\nTweede regel')).toBe('Eerste regel\nTweede regel');
+  expect(readableDocumentText('{"text":"Fictieve bron\\nVolgende regel"}')).toBe('Fictieve bron\nVolgende regel');
+  expect(readableDocumentText('{"unknown":{"patient":"voorbeeld"}}')).not.toContain('patient');
+  expect(readableDocumentText('{invalid')).toContain('oorspronkelijke document');
+});
 
 async function setDemoBanner(page: Page, stage: string) {
   if (process.env.PLAYWRIGHT_HEADLESS !== 'false') return;
@@ -54,6 +62,7 @@ async function signIn(browser: Browser, path: string, username: string, password
 }
 
 async function completePolicyFields(page: Page, card: Locator) {
+  await card.locator('.policy-group').evaluateAll(groups => groups.forEach(group => (group as HTMLDetailsElement).open = true));
   const fields = card.locator('.policy-checks .policy-field');
   const total = await fields.count();
   for (let index = 0; index < total; index++) {
@@ -79,12 +88,65 @@ async function completePolicyFields(page: Page, card: Locator) {
   }
 }
 
-test('gewone Wlz-aanvraag: formulier, CIZ-registratie, triage, rechtstreekse beslissing en verzending', async ({ browser }) => {
+async function demonstrateOcr(page: Page, card: Locator) {
+  const button = card.getByRole('button', {name: 'PDF uitlezen', exact: true});
+  const extraction = card.getByRole('region', {name: 'Document uitlezen', exact: true});
+  if (await button.isVisible()) {
+    await showDemoStage(page, 'Onderzoeker · PDF-uitlezing starten', button);
+    await button.click();
+  } else {
+    await showDemoStage(page, 'BAS · Documentanalyse automatisch gestart na indiening', extraction);
+  }
+  if (process.env.EXPECT_REAL_OCR === 'true') {
+    const ready = extraction.getByRole('heading', {name: 'Controle nodig', exact: true});
+    const error = extraction.getByRole('alert');
+    const failed = extraction.getByText('Verwerking niet geslaagd. Controleer het document handmatig.', {exact: true});
+    const outcome = await Promise.race([
+      ready.waitFor({state: 'visible', timeout: 1_800_000}).then(() => 'ready'),
+      error.waitFor({state: 'visible', timeout: 1_800_000}).then(async () => `error: ${await error.innerText()}`),
+      failed.waitFor({state: 'visible', timeout: 1_800_000}).then(() => 'failed')
+    ]);
+    expect(outcome).toBe('ready');
+    await expect(extraction.getByText('Simulatie — geen echte OCR.', {exact: true})).toHaveCount(0);
+    await expect(extraction.locator('details')).not.toHaveCount(0);
+    await extraction.locator('.ocr-technical-details summary').click();
+    await expect(extraction.getByText('gpt-6.1-sol', {exact: true})).toBeVisible();
+    await showDemoStage(page, 'Onderzoeker · OCR-bron en modelversie bekijken', extraction.locator('.ocr-technical-details'));
+    await showDemoStage(page, 'Onderzoeker · OCR klaar — herkende documentgegevens controleren', extraction.getByRole('region', {name: 'Geëxtraheerde documentgegevens'}));
+  } else {
+    await expect(extraction.getByText('Simulatie — geen echte OCR.', {exact: true})).toBeVisible();
+    await expect(extraction.getByRole('heading', {name: 'Controle nodig', exact: true})).toBeVisible();
+    await showDemoStage(page, 'Onderzoeker · Voorbeeld van herkende documentgegevens — simulatie', extraction.getByRole('region', {name: 'Geëxtraheerde documentgegevens'}));
+  }
+  await expect(extraction.getByRole('region', {name: 'Geëxtraheerde documentgegevens'})).toBeVisible();
+  await extraction.locator('summary').first().click();
+  await showDemoStage(page, 'Onderzoeker · Bronfragment en paginaverwijzing bekijken', extraction.locator('details').first());
+  const extractedText = (await extraction.locator('.ocr-fragment-body pre').allTextContents()).join('\n\n').slice(0, 20000);
+  expect(extractedText.trim().length).toBeGreaterThan(0);
+  await extraction.getByRole('button', {name: 'Vergelijk met PDF', exact: true}).first().click();
+  const sourceDialog = extraction.getByRole('dialog', {name: /Bron:/});
+  await expect(sourceDialog.getByRole('heading', {name: /Uitgelezen tekst/})).toBeVisible();
+  await showDemoStage(page, 'Onderzoeker · Geëxtraheerde tekst naast de PDF vergelijken', sourceDialog);
+  await sourceDialog.getByRole('button', {name: 'Sluiten'}).click();
+  const confirm = extraction.getByRole('button', {name: 'Gecontroleerde tekst vastleggen'});
+  await expect(confirm).toBeDisabled();
+  await showDemoStage(page, 'Onderzoeker · Herkende tekst na broncontrole vastleggen', extraction.getByLabel('Tekst na controle'));
+  await extraction.getByLabel('Tekst na controle').fill(extractedText);
+  await expect(confirm).toBeDisabled();
+  await extraction.getByRole('checkbox').check();
+  await showDemoStage(page, 'Onderzoeker · Menselijke controle bevestigen — geen automatische beleidsfeiten', confirm);
+  await confirm.click();
+  await expect(extraction.getByText('Gecontroleerde tekst', {exact: true})).toBeVisible();
+  await showDemoStage(page, 'Onderzoeker · Gecontroleerd resultaat met audit opgeslagen', extraction);
+}
+
+for (const portal of ['/aanvrager', '/zorgaanbieder']) {
+test(`gewone Wlz-aanvraag via ${portal}: formulier, PDF, OCR, registratie, triage, onderzoek en besluit`, async ({ browser }) => {
   const applicant = await browser.newContext({ baseURL: 'http://localhost:3000' });
   const applicantPage = await applicant.newPage();
   const name = `Fictieve UI cliënt ${Date.now()}`;
   await applicantPage.addInitScript(() => window.localStorage.removeItem('ciz-last-case-id'));
-  await applicantPage.goto('/aanvrager');
+  await applicantPage.goto(portal);
   await showDemoStage(applicantPage, 'Aanvrager · 1/5 Persoonsgegevens', applicantPage.getByRole('heading', { name: 'Persoonlijke gegevens' }));
   await applicantPage.getByLabel('Aanvrager-ID').fill(`ui-${Date.now()}`);
   await applicantPage.getByLabel('Volledige naam').fill(name);
@@ -114,7 +176,7 @@ test('gewone Wlz-aanvraag: formulier, CIZ-registratie, triage, rechtstreekse bes
   await showDemoStage(applicantPage, 'Aanvrager · 5/5 Controleren en indienen', applicantPage.getByRole('heading', { name: 'Controleer uw aanvraag' }));
   await expect(applicantPage.getByRole('heading', { name: 'Controleer uw aanvraag' })).toBeVisible();
   const [createdResponse] = await Promise.all([
-    applicantPage.waitForResponse(response => response.url().endsWith('/api/cases') && response.request().method() === 'POST'),
+    applicantPage.waitForResponse(response => response.url().endsWith('/api/cases/drafts') && response.request().method() === 'POST'),
     applicantPage.getByRole('button', { name: 'Aanvraag indienen' }).click()
   ]);
   expect(createdResponse.status()).toBe(201);
@@ -123,39 +185,99 @@ test('gewone Wlz-aanvraag: formulier, CIZ-registratie, triage, rechtstreekse bes
   await expect(applicantPage.locator('.result-heading h3')).toHaveText(name);
   await showDemoStage(applicantPage, 'Aanvrager · Aanvraag ingediend', applicantPage.locator('.result-heading'));
 
-  const staff = await signIn(browser, '/ciz-medewerker', 'ciz.medewerker', 'ciz-test-only');
-  const registration = staff.page.locator('.work-card').filter({ has: staff.page.getByRole('heading', { name }) });
+  const ao = await signIn(browser, '/ciz-medewerker', 'ciz.medewerker', 'ciz-test-only');
+  await ao.page.getByLabel('Dossier zoeken').fill(name);
+  await ao.page.getByRole('button', {name: `Open dossier ${name}`,exact:true}).click();
+  await expect(ao.page.getByRole('button',{name:'Registratie vastleggen'})).toHaveCount(0);
+  await showDemoStage(ao.page,'AO · Ontvangen PDF uploaden',ao.page.getByLabel('Ontvangen document',{exact:true}));
+  await ao.page.getByLabel('Ontvangen document',{exact:true}).setInputFiles('fixtures/ocr/ann7_ann8_pagescombined_filled.pdf');
+  const uploadButton = ao.page.getByRole('button',{name:'Document uploaden',exact:true});
+  await expect(uploadButton).toBeEnabled();
+  const [uploaded] = await Promise.all([
+    ao.page.waitForResponse(response => response.url().includes(`/api/cases/${createdCase.caseId}/documents`) && response.request().method() === 'POST'),
+    uploadButton.click()
+  ]);
+  expect(uploaded.status()).toBe(201);
+  await expect(ao.page.locator('.document-list').getByText('ann7_ann8_pagescombined_filled.pdf',{exact:true})).toBeVisible();
+
+  const staff = await signIn(browser, '/beoordelaar', 'beoordelaar', 'beoordelaar-test-only');
+  await staff.page.getByLabel('Dossier zoeken').fill(name);
+  await staff.page.getByRole('button',{name:`Open dossier ${name}`,exact:true}).click();
+  const registration = staff.page.locator('.work-card').filter({has:staff.page.getByRole('heading',{name,exact:true})});
   await expect(registration).toBeVisible();
-  await showDemoStage(staff.page, 'CIZ · Registreren en controleren', registration);
-  await completePolicyFields(staff.page, registration);
-  await showDemoStage(staff.page, 'CIZ · Registratie accepteren', registration.getByLabel('Uitkomst registratie en acceptatie'));
+  await showDemoStage(staff.page,'Onderzoeker · Registreren en controleren',registration);
+  await completePolicyFields(staff.page,registration);
+  await showDemoStage(staff.page, 'Onderzoeker · Registratie accepteren', registration.getByLabel('Uitkomst registratie en acceptatie'));
   await registration.getByLabel('Uitkomst registratie en acceptatie').selectOption('ACCEPTED');
-  await showDemoStage(staff.page, 'CIZ · Registratie vastleggen', registration.getByRole('button', { name: 'Registratie vastleggen' }));
+  await showDemoStage(staff.page, 'Onderzoeker · Registratie vastleggen', registration.getByRole('button', { name: 'Registratie vastleggen' }));
   const [registrationResponse] = await Promise.all([
     staff.page.waitForResponse(response => response.url().endsWith('/complete') && response.request().method() === 'POST'),
     registration.getByRole('button', { name: 'Registratie vastleggen' }).click()
   ]);
   expect(registrationResponse.status()).toBe(200);
   await expect(registration).toHaveCount(0);
-  await showDemoStage(staff.page, 'CIZ · Registratie afgerond');
+  await showDemoStage(staff.page, 'Onderzoeker · Registratie afgerond');
 
-  const reviewer = await signIn(browser, '/beoordelaar', 'beoordelaar', 'beoordelaar-test-only');
+  const reviewer = staff;
+  await reviewer.page.getByRole('button',{name:'Triage',exact:true}).click();
+  await reviewer.page.getByLabel('Dossier zoeken').fill(name);
+  await reviewer.page.getByRole('button',{name:`Open dossier ${name}`,exact:true}).click();
   const triage = reviewer.page.locator('.work-card').filter({ has: reviewer.page.getByRole('heading', { name }) });
   await expect(triage).toBeVisible();
-  await showDemoStage(reviewer.page, 'Beoordelaar · Triage', triage);
-  await triage.getByLabel('Uitkomst triage').selectOption('DIRECT_HANDLED');
-  await triage.getByLabel('Uitkomst directe afhandeling').selectOption('GRANTED');
-  await triage.getByLabel('Korte toelichting').fill('Fictieve directe afhandeling voor de UI-test.');
-  await triage.getByLabel('Zorgprofiel (optioneel)').fill('Fictief PoC-profiel');
-  await triage.getByLabel('Grondslagen (optioneel, één per regel)').fill('Fictieve grondslag');
-  await showDemoStage(reviewer.page, 'Beoordelaar · Directe beslissing vastleggen', triage.getByRole('button', { name: 'Triage vastleggen' }));
+  await expect(triage.getByRole('navigation', { name: 'Navigatie in dossier' })).toBeVisible();
+  await expect(triage.getByText('Aanvraag ontvangen', { exact: true })).toBeVisible();
+  await expect(triage.getByText('Registratie gecontroleerd', { exact: true })).toBeVisible();
+  await expect(triage.getByRole('link', { name: 'Beleidsuitkomst' })).toBeVisible();
+  await expect(triage.locator('summary').filter({ hasText: 'Beleidsuitkomst' })).toBeVisible();
+  await expect(triage.getByText('Aanvraag en context', { exact: true })).toBeVisible();
+  const applicationFactColumns = await triage.locator('.triage-application-facts').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+  expect(applicationFactColumns).toBeGreaterThanOrEqual(2);
+  await showDemoStage(reviewer.page, 'Onderzoeker · Triage', triage);
+  await triage.getByRole('radio', { name: /Nader onderzoek inplannen/ }).check();
+  await showDemoStage(reviewer.page, 'Onderzoeker · Nader onderzoek inplannen', triage.getByRole('button', { name: 'Triage vastleggen' }));
   await triage.getByRole('button', { name: 'Triage vastleggen' }).click();
   await expect(triage).toHaveCount(0);
 
-  await staff.page.getByRole('button', { name: 'Vernieuwen' }).last().click();
+  await reviewer.page.getByRole('button',{name:'Onderzoek',exact:true}).click();
+  await reviewer.page.getByLabel('Dossier zoeken').fill(name);
+  await reviewer.page.getByRole('button',{name:`Open dossier ${name}`,exact:true}).click();
+  const investigation = reviewer.page.locator('.work-card').filter({has:reviewer.page.getByRole('heading',{name,exact:true})});
+  await expect(investigation.locator('.assessment-review-layout')).toBeVisible();
+  if (process.env.SKIP_DOCUMENT_PROCESSING !== 'true') {
+    await demonstrateOcr(reviewer.page, investigation);
+    const extractedData = investigation.getByRole('region',{name:'Geëxtraheerde documentgegevens'});
+    await expect(extractedData).toBeVisible();
+    await expect(extractedData.getByText('tekstfragmenten')).toBeVisible();
+  }
+  if (process.env.EXPECT_ANALYSIS_MOCK==='true') {
+    const analysis=investigation.getByRole('region',{name:'Stoornissenanalyse'});
+    // BAS may already have processed the submitted document snapshot automatically.
+    const trigger=analysis.getByRole('button',{name:'Dossier analyseren',exact:true});
+    if(await trigger.isVisible() && await trigger.isEnabled()) await trigger.click();
+    await expect(analysis.getByText('Simulatie voor contracttests — RobBERT is niet uitgevoerd.',{exact:true})).toBeVisible();
+    await expect(analysis.getByLabel(/^Ernstscore/)).toHaveValue('2');
+    await analysis.getByLabel(/^Ernstscore/).selectOption('0');
+    await analysis.getByLabel(/^Beoordeling/).selectOption('ADJUSTED');
+    await analysis.getByRole('checkbox').check();
+    await analysis.getByRole('button',{name:'Bevindingen vastleggen',exact:true}).click();
+    await expect(analysis.getByText(/Laatste menselijke controle/)).toBeVisible();
+  }
+  await showDemoStage(reviewer.page,'Onderzoeker · Documentbronnen naast de beoordeling',investigation.locator('.assessment-review-layout'));
+  await completePolicyFields(reviewer.page,investigation);
+  await investigation.getByLabel('Inhoudelijke uitkomst').selectOption('GRANTED');
+  await investigation.getByLabel('Motivering', {exact:true}).fill('Fictieve inhoudelijke beoordeling op basis van handmatig gecontroleerde dossierinformatie.');
+  await investigation.getByLabel('Zorgprofiel (optioneel)').fill('Fictief PoC-profiel');
+  await investigation.getByLabel('Grondslagen (optioneel, één per regel)').fill('Fictieve grondslag');
+  await showDemoStage(reviewer.page,'Onderzoeker · Beslissing na beoordeling vastleggen',investigation.getByRole('button',{name:'Onderzoek en besluit vastleggen'}));
+  await investigation.getByRole('button',{name:'Onderzoek en besluit vastleggen'}).click();
+  await expect(investigation).toHaveCount(0);
+
+  await staff.page.getByRole('button',{name:'Verzending',exact:true}).click();
+  await staff.page.getByLabel('Dossier zoeken').fill(name);
+  await staff.page.getByRole('button',{name:`Open dossier ${name}`,exact:true}).click();
   const outgoing = staff.page.locator('.work-card').filter({ has: staff.page.getByRole('heading', { name }) });
   await expect(outgoing).toBeVisible();
-  await showDemoStage(staff.page, 'CIZ · Verzending vastleggen', outgoing);
+  await showDemoStage(staff.page, 'Onderzoeker · Verzending vastleggen', outgoing);
   await outgoing.getByRole('button', { name: 'Verzending vastleggen' }).click();
   await expect(outgoing).toHaveCount(0);
 
@@ -171,3 +293,4 @@ test('gewone Wlz-aanvraag: formulier, CIZ-registratie, triage, rechtstreekse bes
   await staff.context.close();
   await applicant.close();
 });
+}

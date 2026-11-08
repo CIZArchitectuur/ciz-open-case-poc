@@ -1,6 +1,6 @@
 # Actueel klassendiagram van zaken
 
-Gecontroleerd op 30 september 2026 aan de hand van de huidige Java-entiteiten. Nederlandse namen zijn weergavenamen; de opgeslagen velden staan met hun namen uit de code in het diagram. Technische outbox-records en enkele tijdstempels zijn voor de leesbaarheid weggelaten.
+Bijgewerkt op 14 oktober 2026. Persoon, Adres, Aanvraag en Zaak worden door de zaakservice opgeslagen. Beleidsbeoordeling, MedischeBeoordeling en Besluit worden via de assessment-service in een eigen database opgeslagen. BAS heeft een eigen database voor OCR, dossieranalyses en menselijke broncontroles. Relaties tussen domeinen zijn identificaties via API's en events; er zijn geen gedeelde databases. Historische records worden idempotent via import-API's overgenomen. Technische outbox-records zijn voor de leesbaarheid weggelaten.
 
 ```mermaid
 classDiagram
@@ -105,6 +105,28 @@ classDiagram
         String sha256
         Instant createdAt
     }
+    class DocumentExtractie {
+        UUID extractionId
+        UUID caseId
+        UUID documentId
+        Instant createdAt
+        JSON result
+        String reviewedText
+        String reviewedBy
+        Instant reviewedAt
+        UUID artifactId
+    }
+    class DossierAnalyse {
+        UUID analysisId
+        UUID caseId
+        Instant createdAt
+        String status
+        JSON documentSnapshot
+        JSON proposalsWithSources
+        String pipelineVersion
+        String classifierModel
+        JSON humanReviewHistory
+    }
     Persoon "1" -- "0..*" Zaak : client van
     Persoon "1" -- "0..*" Adres : adressen
     Zaak "0..*" --> "1" Adres : adres bij aanvraag
@@ -119,9 +141,15 @@ classDiagram
     Beleidsbeoordeling "0..*" ..> "1" ProcesTaak : taskId
     MedischeBeoordeling "0..*" ..> "1" ProcesTaak : taskId
     Zaak "1" .. "0..*" Document : API-koppeling
+    Zaak "1" -- "0..*" DocumentExtractie : extracties
+    Zaak "1" -- "0..*" DossierAnalyse : analysehistorie
+    DossierAnalyse "0..*" ..> "1..*" DocumentExtractie : gebruikte versies
+    DocumentExtractie "0..*" ..> "1" Document : documentId
 ```
 
 Een persoon kan meerdere zaken hebben. De zaak bevat alleen identificatie, verwijzingen en de aanmaaktijd. Elke nieuwe aanvraag krijgt een eigen adresrecord en een eigen zaak.
+
+Aanvraag bevat ook `submissionChannel` (cliëntportaal, zorgaanbieder of post), onafhankelijk van indiener en ondertekenaar. Een concept heeft nog geen `submittedAt` en geen workflow. Cliënt en zorgaanbieder kunnen bijlagen bij hun aanvraag of gevraagde aanvulling voegen; AO uploadt buiten de portalen ontvangen documenten. De Onderzoeker controleert en behandelt de aanvraag. Originale OCR-eenheden staan als JSON-artefact in S3 via de documentservice. BAS bewaart document-/extractieversies, onbetrouwbare voorstellen met bronverwijzingen en een append-only menselijke reviewhistorie. Een ernstscore kan 0–4 of leeg (niet beoordeeld) zijn. Dit introduceert geen extra CIZ/BI-model: stoornissen en beperkingen blijven eenvoudige bevindingen binnen het analyseresultaat, afzonderlijk van bevestigde RegelRecht-feiten.
 
 Een besluit is een afzonderlijk record. Nieuwe besluitvorming voegt een besluit toe; verzending markeert het nieuwste besluit. Zorgprofiel en grondslagen zijn eenvoudige tekstwaarden. Een besluit verwijst naar de laatste beschikbare beleids- en medische beoordeling op het moment van besluitvorming en naar de producerende taak. Deze beoordelingen behouden hun feiten, uitkomsten en regelversies; latere beoordelingen veranderen de verwijzingen van oudere besluiten niet.
 
@@ -132,4 +160,4 @@ Ten opzichte van het eerder aangeleverde wensdiagram zijn er deze concrete versc
 - De voortgangsstatus staat op `Aanvraag` als `applicantStatus`. Operaton beheert de procesvolgorde en taken.
 - Taken en documentmetadata zijn eigendom van andere diensten. De gestippelde relaties zijn verwijzingen via API's en identifiers, geen gedeelde database-relaties.
 
-Bronnen: `case-service/src/main/java/nl/ciz/caseapi/*Entity.java`, `document-service/src/main/java/nl/ciz/document/DocumentEntity.java` en de frontend-transporttypen voor `CaseTask`.
+Bronnen: de OpenAPI-contracten voor case-, BAS-, assessment- en documentservice en hun Java-entiteiten. De assessment-service slaat de getypeerd gevalideerde beoordelings- en besluitrecords op met hun volledige payload en audit. Oude case-tabellen blijven beschikbaar voor idempotente historische migratie.

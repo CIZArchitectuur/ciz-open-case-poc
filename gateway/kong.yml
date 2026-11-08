@@ -14,6 +14,36 @@ plugins:
       echo_downstream: true
 
 services:
+  - name: assessment-service
+    url: http://assessment-service:8080
+    routes:
+      - name: internal-assessment
+        paths: [/internal/assessment]
+        strip_path: true
+  - name: bas-service
+    url: http://bas-service:8080
+    routes:
+      - name: internal-bas
+        paths: [/internal/bas]
+        strip_path: true
+  - name: impairment-analysis-adapter
+    url: http://impairment-analysis-adapter:8080
+    routes:
+      - name: internal-impairment-analysis
+        paths: [/internal/impairment-analysis]
+        strip_path: true
+  - name: document-structuring-adapter
+    url: http://document-structuring-adapter:8080
+    routes:
+      - name: internal-document-structuring
+        paths: [/internal/document-structuring]
+        strip_path: true
+  - name: document-pipeline
+    url: http://pipeline-mock:8080
+    routes:
+      - name: internal-document-pipeline
+        paths: [/internal/document-pipeline]
+        strip_path: true
   - name: case-api
     url: http://case-service:8080/cases
     routes:

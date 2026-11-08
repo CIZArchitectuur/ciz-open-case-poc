@@ -5,6 +5,7 @@ RUN pip install --no-cache-dir -r tests/requirements.txt
 
 FROM dependencies AS test
 COPY contracts ./contracts
+COPY compose.yaml ./compose.yaml
 COPY processes ./processes
 COPY tests ./tests
 RUN addgroup -S tests && adduser -S tests -G tests && chown -R tests:tests /workspace
