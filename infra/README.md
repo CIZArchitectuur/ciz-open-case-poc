@@ -164,3 +164,7 @@ group also cause the ingress verification to fail and need deliberate migration.
 Commit the complete application changes before starting a run: Actions checks out
 Git, not local uncommitted/untracked files. Keep the resource suffix unchanged
 when redeploying so that databases and document storage keep their identity.
+
+### Retest an existing deployment
+
+Run the **Azure smoke test** workflow on `main` to verify the deployed stack without rebuilding or redeploying application images. It uses the existing demo credential and creates fictional test data, including a document upload and asynchronous OCR/analysis checks.

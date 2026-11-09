@@ -87,6 +87,12 @@ class DeploymentContracts(unittest.TestCase):
         self.assertNotIn('ciz-test-only', json.dumps(self.apps['variables']['realm']))
         self.assertEqual(self.apps['parameters']['demoUserPassword']['type'], 'securestring')
 
+    def test_ocr_adapter_has_required_pipeline_configuration(self):
+        adapter = next(s for s in self.apps['variables']['specs'] if s['name'] == 'structuring')
+        env = {e['name']: e['value'] for e in adapter['env']}
+        self.assertEqual(json.loads(env['PIPELINE_CONFIG_JSON']), {})
+        self.assertEqual(env['PIPELINE_MOCK'], 'true')
+
     def test_sensitive_parameters_are_secure(self):
         for name in ('registryPassword', 'postgresAdminPassword', 's3ProxyPassword', 'demoUserPassword', 'keycloakAdminPassword'):
             self.assertEqual(self.apps['parameters'][name]['type'], 'securestring')
