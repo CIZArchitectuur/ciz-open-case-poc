@@ -56,9 +56,9 @@ class DeploymentContracts(unittest.TestCase):
             'address', 'structuring', 'impairment', 'pipeline-mock', 'status', 'kong',
             'frontend', 'keycloak', 's3'})
         self.assertEqual([s['name'] for s in specs if s['external']], ['frontend'])
-        for name in ('bas', 'workflow', 'status', 'keycloak'):
+        for name in ('bas', 'workflow', 'status'):
             self.assertEqual(next(s for s in specs if s['name'] == name)['minReplicas'], 1)
-        for name in ('policy', 'document', 'case', 'assessment', 'frontend', 's3'):
+        for name in ('policy', 'document', 'case', 'assessment', 'frontend', 's3', 'keycloak'):
             self.assertEqual(next(s for s in specs if s['name'] == name)['minReplicas'], 0)
 
     def test_documents_use_stateless_s3_gateway_and_managed_blob(self):

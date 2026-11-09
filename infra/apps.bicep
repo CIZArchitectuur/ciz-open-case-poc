@@ -358,7 +358,7 @@ var specs = [
     image: 'quay.io/keycloak/keycloak:26.7.0'
     database: ''
     kafka: false
-    minReplicas: 1
+    minReplicas: 0
     cpu: '0.5'
     memory: '1Gi'
     readinessPath: '/auth/realms/ciz-poc'

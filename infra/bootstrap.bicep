@@ -28,6 +28,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   tags: tags
   properties: {
     retentionInDays: 30
+    workspaceCapping: { dailyQuotaGb: json('0.1') }
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
     }
