@@ -257,6 +257,7 @@ var specs = [
       { name: 'PIPELINE_BASE_URL', value: '${gatewayUrl}/internal/document-pipeline' }
       { name: 'PIPELINE_VERSION', value: 'mock-v1' }
       { name: 'PIPELINE_MOCK', value: 'true' }
+      { name: 'PIPELINE_CONFIG_JSON', value: '{}' }
     ]
     args: []
     volumes: []
