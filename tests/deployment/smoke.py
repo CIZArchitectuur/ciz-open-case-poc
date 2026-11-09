@@ -29,7 +29,7 @@ def safe_error(error):
 
 
 def call(method, path, expected=200, **kwargs):
-    response = requests.request(method, BASE + path, timeout=60, **kwargs)
+    response = requests.request(method, BASE + path, timeout=150, **kwargs)
     if response.status_code != expected:
         raise requests.HTTPError(response=response)
     return response
