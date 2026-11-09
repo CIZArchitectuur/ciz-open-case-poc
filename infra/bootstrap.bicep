@@ -186,15 +186,6 @@ resource eventAccess 'Microsoft.EventHub/namespaces/authorizationRules@2024-01-0
   name: 'applications'
   properties: { rights: ['Listen', 'Send'] }
 }
-resource files 'Microsoft.Storage/storageAccounts/fileServices@2023-05-01' = {
-  parent: storage
-  name: 'default'
-}
-resource documentFiles 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-05-01' = {
-  parent: files
-  name: 'minio-data'
-  properties: { shareQuota: 10 }
-}
 resource pullToken 'Microsoft.ContainerRegistry/registries/tokens@2023-07-01' = {
   parent: acr
   name: 'container-apps-pull'
@@ -237,18 +228,6 @@ output storageAccountName string = storage.name
 output storageBlobEndpoint string = storage.properties.primaryEndpoints.blob
 output documentsContainerName string = documents.name
 
-resource minioMount 'Microsoft.App/managedEnvironments/storages@2024-03-01' = {
-  parent: containerEnvironment
-  name: 'minio-data'
-  properties: {
-    azureFile: {
-      accountName: storage.name
-      accountKey: storage.listKeys().keys[0].value
-      shareName: documentFiles.name
-      accessMode: 'ReadWrite'
-    }
-  }
-}
 output defaultDomain string = containerEnvironment.properties.defaultDomain
 output outboundIp string = egressIp.properties.ipAddress
 

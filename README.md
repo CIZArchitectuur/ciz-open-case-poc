@@ -202,8 +202,7 @@ API, authentication, document storage and asynchronous workflow.
 
 The Bicep templates configure VNet-integrated Container Apps on the Consumption
 workload profile, one public frontend, one static NAT egress IP, private PostgreSQL,
-Event Hubs' Kafka interface, and an internal S3-compatible MinIO service with
-persistent Azure Files storage. HTTP services can scale to zero; background
+Event Hubs' Kafka interface, and an internal stateless S3Proxy gateway backed by managed Azure Blob Storage. HTTP services can scale to zero; background
 consumers retain one replica. OCR and impairment analysis use labelled mocks.
 
 See [Azure deployment configuration](infra/README.md) for required secrets,
@@ -213,6 +212,16 @@ A passing local template check is not evidence of a successful live deployment.
 ```sh
 docker compose --profile test run --build --rm deployment-tests
 ```
+
+CI uses `compose.azure-blob.yaml` with Azurite and the same pinned S3Proxy image
+as Azure. To run that storage profile locally:
+
+```sh
+docker compose -f compose.yaml -f compose.analysis-test.yaml -f compose.azure-blob.yaml up --build
+```
+
+The default local profile keeps MinIO; cloud storage is managed Azure Blob Storage.
+The S3 interface is supplied by S3Proxy, not natively by Azure Blob Storage.
 
 ## Development containers
 

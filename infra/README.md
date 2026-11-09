@@ -25,12 +25,21 @@ resource group, register subscription providers or grant Azure roles.
   supply the required Kafka interface. This keeps events durable without a broker
   VM. It is a change in infrastructure provider, not a claim of complete Kafka
   feature equivalence; the deployed asynchronous smoke checks must pass.
-- MinIO keeps the existing S3 API. A 10 GiB Azure Files SMB share persists objects;
-  the storage firewall allows the Container Apps subnet via a service endpoint.
-  This single-replica PoC layout is not a validated production MinIO storage design.
-  Azure Blob is not an S3 endpoint and is not used as one.
+- Managed Azure Blob Storage stores documents in the private `ciz-documents`
+  container in a Standard LRS storage account. The storage firewall allows the
+  Container Apps subnet through a service endpoint.
+- Azure Blob does not natively implement the S3 API. A pinned S3Proxy 4.1.1
+  container translates the existing document-service S3 operations to the Blob
+  API. It is stateless, has no data volume, and can scale to zero. No MinIO or
+  Azure Files share is deployed in Azure. The tested compatibility scope is the
+  document service's bucket readiness, PUT/GET, content type and SHA-256 metadata;
+  S3Proxy does not promise every S3 feature (for example Azure-backed S3 versioning).
+- The gateway gets an account key as a Container Apps secret. This avoids asking
+  the deployment Contributor to grant data-plane roles it cannot grant. A
+  dedicated runtime managed identity plus a preassigned Storage Blob Data
+  Contributor role is an alternative when an administrator provisions that role.
 - HTTP-driven apps have zero minimum replicas and at most one replica. The BAS,
-  workflow and status consumers, Keycloak and MinIO retain one replica. Background
+  workflow and status consumers and Keycloak retain one replica. Background
   Kafka consumers must remain running to observe new events in this configuration.
 - OCR and impairment analysis use explicitly labelled protocol mocks, as in CI.
   The upstream private NLP pipeline and the OpenAI overlay are not deployed.
@@ -48,13 +57,18 @@ the app subnet. This is not a fully private Azure management/build environment.
 
 ## Required GitHub configuration
 
+Set the repository variable `AZURE_SUBSCRIPTION_ID` to the intended target
+subscription. For the CIZ architecture sandbox, use the subscription ID for
+`ciz_architecture_sbx`. Create the target resource group and grant the GitHub
+deployment identity Contributor on that group before dispatching the workflow.
+
 Repository secrets (never put values in a commit):
 
 | Secret | Purpose |
 | --- | --- |
 | `AZURE_CLIENT_ID` | Application/client ID of `github-ciz-open-case-poc` |
 | `POSTGRES_ADMIN_PASSWORD` | PostgreSQL administrator password |
-| `MINIO_PASSWORD` | Internal object-store password |
+| `S3_PROXY_PASSWORD` | S3 gateway credential; the backend uses a separate Blob account key |
 | `DEMO_USER_PASSWORD` | Password for both fictional demo users and the confidential smoke-test client |
 | `KEYCLOAK_ADMIN_PASSWORD` | Initial Keycloak bootstrap administrator password |
 
@@ -116,8 +130,8 @@ resources, application completeness, public ingress count, NAT, private PostgreS
 persistence, secure parameters and missing-configuration handling. CI also runs the
 application checks listed in the root README.
 
-After deploying, Actions initializes the S3 bucket in an internal Container Apps
-job and runs a second job which calls `https://api.ipify.org`. Its observed address
+The Blob container is provisioned by Bicep before the apps start. After deploying,
+Actions runs an internal Container Apps job which calls `https://api.ipify.org`. Its observed address
 must match the provisioned NAT IP. Actions checks that only the frontend has
 external ingress, then runs a containerized smoke test through the public URL:
 
@@ -130,8 +144,10 @@ external ingress, then runs a containerized smoke test through the public URL:
 
 The fictional smoke-test record is retained; no real client data is required.
 Smoke tests do not retry non-idempotent writes. A failed smoke test fails the
-workflow; there is no automatic database rollback. Browser interaction and file
-persistence across an explicit restart are not proven by these smoke checks.
+workflow; there is no automatic database rollback. The Azure smoke check does not itself prove browser interaction or an explicit
+restart. CI runs browser tests and an additional byte-for-byte download through
+the document API after restarting the volume-free S3Proxy gateway, backed by
+Azurite in `compose.azure-blob.yaml`.
 
 ## Existing deployments and source state
 

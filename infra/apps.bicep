@@ -4,13 +4,12 @@ param environment string = 'dev'
 param suffix string
 param imageTag string
 param defaultDomain string
-param storageOnly bool = false
 @secure()
 param postgresAdminPassword string
 @secure()
 param registryPassword string
 @secure()
-param minioPassword string
+param s3ProxyPassword string
 @secure()
 param demoUserPassword string
 @secure()
@@ -19,6 +18,7 @@ param postgresAdminUser string = 'cizadmin'
 
 var prefix = 'ciz-open-case-${environment}'
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = { name: 'cizopencase${suffix}' }
+resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = { name: 'cizcase${suffix}' }
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = { name: '${prefix}-pg-${suffix}' }
 resource cae 'Microsoft.App/managedEnvironments@2024-03-01' existing = { name: '${prefix}-cae-vnet' }
 resource events 'Microsoft.EventHub/namespaces@2024-01-01' existing = { name: '${prefix}-events-${suffix}' }
@@ -53,7 +53,8 @@ var realm = union(localRealm, {
 })
 var secretValues = {
   'db-password': postgresAdminPassword
-  'minio-password': minioPassword
+  's3-password': s3ProxyPassword
+  'blob-account-key': storage.listKeys().keys[0].value
   'keycloak-admin-password': keycloakAdminPassword
   'realm-json': string(realm)
   'kafka-jaas': 'org.apache.kafka.common.security.plain.PlainLoginModule required username="$ConnectionString" password="${eventAccess.listKeys().primaryConnectionString}";'
@@ -108,13 +109,13 @@ var specs = [
     readinessPath: '/q/health/ready'
     external: false
     port: 8080
-    secretNames: ['minio-password', 'db-password']
+    secretNames: ['s3-password', 'db-password']
     env: [
       { name: 'S3_ENDPOINT', value: 'http://ciz-${environment}-s3' }
       { name: 'S3_REGION', value: 'eu-west-1' }
       { name: 'S3_BUCKET', value: 'ciz-documents' }
       { name: 'S3_ACCESS_KEY', value: 'ciz-storage' }
-      { name: 'S3_SECRET_KEY', secretRef: 'minio-password' }
+      { name: 'S3_SECRET_KEY', secretRef: 's3-password' }
     ]
     args: []
     volumes: []
@@ -391,27 +392,34 @@ var specs = [
   }
   {
     name: 's3'
-    image: '${acr.name}.azurecr.io/s3:${imageTag}'
+    image: 'andrewgaul/s3proxy:4.1.1@sha256:87662b2a5afcdfa5f478a1c61650bae4c87bbd15f6ff2823236bcfd66ef7fe04'
     database: ''
     kafka: false
-    minReplicas: 1
+    minReplicas: 0
     cpu: '0.25'
     memory: '0.5Gi'
-    readinessPath: '/minio/health/ready'
+    readinessPath: '/healthz'
     external: false
-    port: 9000
-    secretNames: ['minio-password']
+    port: 8080
+    secretNames: ['s3-password', 'blob-account-key']
     env: [
-      { name: 'MINIO_ROOT_USER', value: 'ciz-storage' }
-      { name: 'MINIO_ROOT_PASSWORD', secretRef: 'minio-password' }
+      { name: 'LOG_LEVEL', value: 'warn' }
+      { name: 'S3PROXY_AUTHORIZATION', value: 'aws-v2-or-v4' }
+      { name: 'S3PROXY_ENDPOINT', value: 'http://0.0.0.0:8080' }
+      { name: 'S3PROXY_IDENTITY', value: 'ciz-storage' }
+      { name: 'S3PROXY_CREDENTIAL', secretRef: 's3-password' }
+      { name: 'JCLOUDS_PROVIDER', value: 'azureblob' }
+      { name: 'JCLOUDS_ENDPOINT', value: 'https://${storage.name}.blob.${az.environment().suffixes.storage}' }
+      { name: 'JCLOUDS_IDENTITY', value: storage.name }
+      { name: 'JCLOUDS_CREDENTIAL', secretRef: 'blob-account-key' }
     ]
-    args: ['server', '/data', '--console-address', ':9001']
-    volumes: [{ name: 'documents', storageType: 'AzureFile', storageName: 'minio-data' }]
-    volumeMounts: [{ volumeName: 'documents', mountPath: '/data' }]
+    args: []
+    volumes: []
+    volumeMounts: []
   }
 ]
 module apps './modules/container-app.bicep' = [
-  for spec in filter(specs, spec => !storageOnly || spec.name == 's3'): {
+  for spec in specs: {
     name: 'app-${spec.name}'
     params: {
       name: 'ciz-${environment}-${spec.name}'
@@ -429,7 +437,7 @@ module apps './modules/container-app.bicep' = [
       args: spec.args
       volumes: spec.volumes
       volumeMounts: spec.volumeMounts
-      secrets: [for secret in spec.secretNames: { name: secret, value: secretValues[secret] }]
+      appSecrets: toObject(spec.secretNames, secret => secret, secret => secretValues[secret])
       env: concat(
         commonEnv,
         empty(spec.database) ? [] : concat(databaseEnv, [{ name: 'DB_NAME', value: spec.database }]),
@@ -440,41 +448,6 @@ module apps './modules/container-app.bicep' = [
   }
 ]
 
-// Run explicitly from Actions after the internal S3 endpoint is ready.
-resource initializeBucket 'Microsoft.App/jobs@2024-03-01' = {
-  name: 'ciz-${environment}-s3-init'
-  location: location
-  properties: {
-    environmentId: cae.id
-    workloadProfileName: 'Consumption'
-    configuration: {
-      triggerType: 'Manual'
-      replicaTimeout: 600
-      replicaRetryLimit: 1
-      manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
-      secrets: [{ name: 's3-password', value: minioPassword }]
-    }
-    template: {
-      containers: [
-        {
-          name: 'initialize'
-          image: 'amazon/aws-cli:2.27.16'
-          command: ['/bin/sh', '-c']
-          args: [
-            'for i in $(seq 1 60); do aws --endpoint-url "$S3_ENDPOINT" s3api head-bucket --bucket ciz-documents >/dev/null 2>&1 && exit 0; aws --endpoint-url "$S3_ENDPOINT" s3api create-bucket --bucket ciz-documents >/dev/null 2>&1 && exit 0; sleep 5; done; exit 1'
-          ]
-          env: [
-            { name: 'S3_ENDPOINT', value: 'http://ciz-${environment}-s3' }
-            { name: 'AWS_ACCESS_KEY_ID', value: 'ciz-storage' }
-            { name: 'AWS_SECRET_ACCESS_KEY', secretRef: 's3-password' }
-            { name: 'AWS_DEFAULT_REGION', value: 'us-east-1' }
-          ]
-          resources: { cpu: json('0.25'), memory: '0.5Gi' }
-        }
-      ]
-    }
-  }
-}
 output frontendUrl string = publicUrl
 
 resource checkEgress 'Microsoft.App/jobs@2024-03-01' = {

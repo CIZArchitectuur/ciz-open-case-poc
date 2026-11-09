@@ -17,7 +17,7 @@ permissions:
 
 env:
   AZURE_TENANT_ID: 53140781-c4dd-40a2-8a89-92127023d5fe
-  AZURE_SUBSCRIPTION_ID: c3ab647a-0f33-45fb-869b-f406e846005c
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
   AZURE_RESOURCE_GROUP: ciz-open-case-poc-dev
   AZURE_SUFFIX: ${{ inputs.suffix }}
   AZURE_ENVIRONMENT: dev
@@ -32,6 +32,12 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Require the target subscription
+        run: |
+          if [[ ! "$AZURE_SUBSCRIPTION_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::Set the AZURE_SUBSCRIPTION_ID repository variable to the target subscription ID."
+            exit 1
+          fi
       - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -63,7 +69,7 @@ jobs:
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-      MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
+      S3_PROXY_PASSWORD: ${{ secrets.S3_PROXY_PASSWORD }}
       DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
       KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
     steps:
@@ -103,14 +109,10 @@ jobs:
           set -euo pipefail
           python3 scripts/azure-parameters.py apps
           az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "storage-$GITHUB_RUN_ID" --template-file infra/apps.bicep \
-            --parameters @"$RUNNER_TEMP/apps.parameters.json" storageOnly=true --output none
-          bash scripts/azure-verify-infrastructure.sh storage
-          az deployment group create --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "apps-$GITHUB_RUN_ID" --template-file infra/apps.bicep \
             --parameters @"$RUNNER_TEMP/apps.parameters.json" --output none
           echo "FRONTEND_URL=https://ciz-dev-frontend.$DEFAULT_DOMAIN" >> "$GITHUB_ENV"
-      - name: Initialize document bucket and check single NAT egress
+      - name: Check single NAT egress and public ingress
         run: bash scripts/azure-verify-infrastructure.sh
       - name: Verify deployed API, authentication, documents and asynchronous workflow
         run: |

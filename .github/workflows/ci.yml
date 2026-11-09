@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      COMPOSE_FILE: compose.yaml:compose.analysis-test.yaml
+      COMPOSE_FILE: compose.yaml:compose.analysis-test.yaml:compose.azure-blob.yaml
     steps:
       - uses: actions/checkout@v4
       - name: Build runtime and test images
@@ -51,6 +51,8 @@ jobs:
         run: docker compose --profile test run --rm contract-tests
       - name: Integration tests
         run: docker compose --profile test run --rm integration-tests
+      - name: Document persistence across stateless S3 gateway restart
+        run: sh scripts/test-blob-persistence.sh
       - name: Kafka workflow outage, recovery and replay
         run: sh scripts/test-workflow-async.sh
       - name: End-to-end tests

@@ -56,15 +56,25 @@ class DeploymentContracts(unittest.TestCase):
             'address', 'structuring', 'impairment', 'pipeline-mock', 'status', 'kong',
             'frontend', 'keycloak', 's3'})
         self.assertEqual([s['name'] for s in specs if s['external']], ['frontend'])
-        for name in ('bas', 'workflow', 'status', 's3', 'keycloak'):
+        for name in ('bas', 'workflow', 'status', 'keycloak'):
             self.assertEqual(next(s for s in specs if s['name'] == name)['minReplicas'], 1)
-        for name in ('policy', 'document', 'case', 'assessment', 'frontend'):
+        for name in ('policy', 'document', 'case', 'assessment', 'frontend', 's3'):
             self.assertEqual(next(s for s in specs if s['name'] == name)['minReplicas'], 0)
 
-    def test_documents_use_persistent_s3_not_blob_as_s3(self):
+    def test_documents_use_stateless_s3_gateway_and_managed_blob(self):
         specs = self.apps['variables']['specs']
         s3 = next(s for s in specs if s['name'] == 's3')
-        self.assertEqual(s3['volumes'][0]['storageType'], 'AzureFile')
+        self.assertEqual(s3['volumes'], [])
+        self.assertEqual(s3['volumeMounts'], [])
+        self.assertIn('andrewgaul/s3proxy:4.1.1@sha256:', s3['image'])
+        config = {e['name']: e for e in s3['env']}
+        self.assertEqual(config['JCLOUDS_PROVIDER']['value'], 'azureblob')
+        self.assertIn('.blob.', config['JCLOUDS_ENDPOINT']['value'])
+        self.assertIn('suffixes.storage', config['JCLOUDS_ENDPOINT']['value'])
+        self.assertEqual(config['JCLOUDS_CREDENTIAL']['secretRef'], 'blob-account-key')
+        self.assertFalse(any('/fileServices' in r['type'] for r in self.bootstrap['resources']))
+        container = self.resource(self.bootstrap, 'Microsoft.Storage/storageAccounts/blobServices/containers')
+        self.assertEqual(container['properties']['publicAccess'], 'None')
         document = next(s for s in specs if s['name'] == 'document')
         endpoint = next(e['value'] for e in document['env'] if e['name'] == 'S3_ENDPOINT')
         self.assertNotIn('blob.core.windows.net', endpoint)
@@ -78,12 +88,17 @@ class DeploymentContracts(unittest.TestCase):
         self.assertEqual(self.apps['parameters']['demoUserPassword']['type'], 'securestring')
 
     def test_sensitive_parameters_are_secure(self):
-        for name in ('registryPassword', 'postgresAdminPassword', 'minioPassword', 'demoUserPassword', 'keycloakAdminPassword'):
+        for name in ('registryPassword', 'postgresAdminPassword', 's3ProxyPassword', 'demoUserPassword', 'keycloakAdminPassword'):
             self.assertEqual(self.apps['parameters'][name]['type'], 'securestring')
+
+    def test_nested_deployments_keep_app_credentials_secure(self):
+        module = self.resource(self.apps, 'Microsoft.Resources/deployments')
+        nested = module['properties']['template']
+        self.assertEqual(nested['parameters']['appSecrets']['type'].lower(), 'secureobject')
 
     def test_missing_configuration_fails_without_echoing_secrets(self):
         env = dict(AZURE_CLIENT_ID='client', AZURE_SUFFIX='cizdev42',
-                   POSTGRES_ADMIN_PASSWORD='secret-value-hidden-123456', MINIO_PASSWORD='another-hidden-value-123456',
+                   POSTGRES_ADMIN_PASSWORD='secret-value-hidden-123456', S3_PROXY_PASSWORD='another-hidden-value-123456',
                    DEMO_USER_PASSWORD='demo-secret-hidden-123456', KEYCLOAK_ADMIN_PASSWORD='admin-hidden-value-123456')
         self.assertEqual(parameters.parameters('bootstrap', env)['parameters']['suffix']['value'], 'cizdev42')
         del env['DEMO_USER_PASSWORD']
