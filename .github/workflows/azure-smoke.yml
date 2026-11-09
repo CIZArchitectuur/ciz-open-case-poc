@@ -23,4 +23,5 @@ jobs:
       - name: Test the deployed stack with fictional data
         run: |
           docker build -f tests/Dockerfile -t ciz-azure-smoke .
+          docker run --rm ciz-azure-smoke pytest -q tests/contract/test_smoke_diagnostics.py
           docker run --rm -e FRONTEND_URL -e DEMO_USER_PASSWORD ciz-azure-smoke python tests/deployment/smoke.py
