@@ -93,7 +93,12 @@ async function demonstrateOcr(page: Page, card: Locator) {
   const extraction = card.getByRole('region', {name: 'Document uitlezen', exact: true});
   if (await button.isVisible()) {
     await showDemoStage(page, 'Onderzoeker · PDF-uitlezing starten', button);
-    await button.click();
+    try {
+      await button.click({timeout: 2_000});
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error;
+      await expect(button).toBeHidden();
+    }
   } else {
     await showDemoStage(page, 'BAS · Documentanalyse automatisch gestart na indiening', extraction);
   }
