@@ -168,6 +168,9 @@ var specs = [
       { name: 'OIDC_TOKEN_ISSUER', value: issuer }
       { name: 'OIDC_ROLE_CLAIM_PATH', value: 'ciz_roles' }
       { name: 'CORS_ORIGINS', value: publicUrl }
+      { name: 'QUARKUS_REST_CLIENT_ASSESSMENT_API_READ_TIMEOUT', value: '45000' }
+      { name: 'DOCUMENT_READ_TIMEOUT_MS', value: '45000' }
+      { name: 'OPERATON_READ_TIMEOUT_MS', value: '30000' }
     ]
     args: []
     volumes: []

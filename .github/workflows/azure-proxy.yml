@@ -46,6 +46,9 @@ jobs:
           echo "PROXY_IMAGE=$target" >> "$GITHUB_ENV"
       - name: Update frontend proxy only
         run: az containerapp update -g "$RESOURCE_GROUP" -n "$APP" --image "$PROXY_IMAGE" --output none
+      - name: Configure backend cold-start timeouts
+        run: |
+          az containerapp update -g "$RESOURCE_GROUP" -n ciz-dev-case --set-env-vars QUARKUS_REST_CLIENT_ASSESSMENT_API_READ_TIMEOUT=45000 DOCUMENT_READ_TIMEOUT_MS=45000 OPERATON_READ_TIMEOUT_MS=30000 --output none
       - name: Verify deployed stack
         run: |
           docker build -f tests/Dockerfile -t ciz-azure-smoke .

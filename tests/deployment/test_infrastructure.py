@@ -93,6 +93,13 @@ class DeploymentContracts(unittest.TestCase):
         self.assertEqual(json.loads(env['PIPELINE_CONFIG_JSON']), {})
         self.assertEqual(env['PIPELINE_MOCK'], 'true')
 
+    def test_case_clients_allow_consumption_cold_starts(self):
+        case = next(s for s in self.apps['variables']['specs'] if s['name'] == 'case')
+        env = {e['name']: e['value'] for e in case['env']}
+        self.assertEqual(env['QUARKUS_REST_CLIENT_ASSESSMENT_API_READ_TIMEOUT'], '45000')
+        self.assertEqual(env['DOCUMENT_READ_TIMEOUT_MS'], '45000')
+        self.assertEqual(env['OPERATON_READ_TIMEOUT_MS'], '30000')
+
     def test_sensitive_parameters_are_secure(self):
         for name in ('registryPassword', 'postgresAdminPassword', 's3ProxyPassword', 'demoUserPassword', 'keycloakAdminPassword'):
             self.assertEqual(self.apps['parameters'][name]['type'], 'securestring')
