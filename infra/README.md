@@ -39,8 +39,10 @@ resource group, register subscription providers or grant Azure roles.
   dedicated runtime managed identity plus a preassigned Storage Blob Data
   Contributor role is an alternative when an administrator provisions that role.
 - HTTP-driven apps have zero minimum replicas and at most one replica. The BAS,
-  workflow and status consumers and Keycloak retain one replica. Background
-  Kafka consumers must remain running to observe new events in this configuration.
+  workflow and status consumers retain one replica to observe new events.
+  Keycloak scales to zero, so the first login after inactivity may take longer.
+- Log Analytics has a 0.1 GB daily ingestion cap. Once the cap is reached,
+  log ingestion may pause until the daily reset.
 - OCR and impairment analysis use explicitly labelled protocol mocks, as in CI.
   The upstream private NLP pipeline and the OpenAI overlay are not deployed.
 
