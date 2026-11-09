@@ -346,8 +346,8 @@ var specs = [
     port: 8080
     secretNames: []
     env: [
-      { name: 'GATEWAY_URL', value: gatewayUrl }
-      { name: 'IDENTITY_URL', value: 'http://ciz-${environment}-keycloak' }
+      { name: 'GATEWAY_URL', value: 'http://ciz-${environment}-kong.internal.${defaultDomain}' }
+      { name: 'IDENTITY_URL', value: 'http://ciz-${environment}-keycloak.internal.${defaultDomain}' }
     ]
     args: []
     volumes: []
