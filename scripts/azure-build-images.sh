@@ -14,7 +14,6 @@ for service in case-service bas-service assessment-service document-service poli
 done
 build_push processes processes/Dockerfile operaton-ciz
 build_push . pipeline-mock/Dockerfile pipeline-mock
-build_push . infra/minio/Dockerfile s3
 build_push . infra/gateway/Dockerfile gateway --build-arg "ENVIRONMENT=$AZURE_ENVIRONMENT"
 build_push frontend frontend/Dockerfile frontend --target runtime \
   --build-arg "VITE_OIDC_AUTHORITY=$public_url/auth/realms/ciz-poc" \

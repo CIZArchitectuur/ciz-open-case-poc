@@ -7,7 +7,7 @@ import sys
 
 
 def parameters(stage, env):
-    required = ('AZURE_CLIENT_ID', 'POSTGRES_ADMIN_PASSWORD', 'MINIO_PASSWORD',
+    required = ('AZURE_CLIENT_ID', 'POSTGRES_ADMIN_PASSWORD', 'S3_PROXY_PASSWORD',
                 'DEMO_USER_PASSWORD', 'KEYCLOAK_ADMIN_PASSWORD')
     for name in required:
         if not env.get(name):
@@ -24,7 +24,7 @@ def parameters(stage, env):
             if not env.get(name):
                 raise ValueError(f'Missing deployment output: {name}')
         values.update(registryPassword=env['REGISTRY_PASSWORD'], defaultDomain=env['DEFAULT_DOMAIN'],
-                      imageTag=env['IMAGE_TAG'], minioPassword=env['MINIO_PASSWORD'],
+                      imageTag=env['IMAGE_TAG'], s3ProxyPassword=env['S3_PROXY_PASSWORD'],
                       demoUserPassword=env['DEMO_USER_PASSWORD'],
                       keycloakAdminPassword=env['KEYCLOAK_ADMIN_PASSWORD'])
     return {'$schema': 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#',

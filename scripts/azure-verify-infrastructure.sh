@@ -14,9 +14,7 @@ wait_job() {
   echo "::error::$job timed out"
   return 1
 }
-jobs=egress-check
-[ "${1:-all}" = storage ] && jobs=s3-init
-for suffix in $jobs; do
+for suffix in egress-check; do
   job="ciz-$AZURE_ENVIRONMENT-$suffix"
   execution=$(az containerapp job start -g "$AZURE_RESOURCE_GROUP" -n "$job" --query name -o tsv)
   wait_job "$job" "$execution"
@@ -31,6 +29,5 @@ for suffix in $jobs; do
     [ "$matched" = true ] || { echo '::error::Observed egress did not match the NAT public IP'; exit 1; }
   fi
 done
-[ "${1:-all}" = storage ] && exit 0
 apps=$(az containerapp list -g "$AZURE_RESOURCE_GROUP" --query "[?properties.configuration.ingress.external == \`true\`].name" -o tsv)
 [ "$apps" = "ciz-$AZURE_ENVIRONMENT-frontend" ] || { echo '::error::Expected exactly one public Container App'; exit 1; }

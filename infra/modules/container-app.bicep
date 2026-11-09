@@ -8,7 +8,8 @@ param registryPassword string
 param targetPort int = 8080
 param externalIngress bool = false
 param env array = []
-param secrets array = []
+@secure()
+param appSecrets object = {}
 param volumes array = []
 param volumeMounts array = []
 param args array = []
@@ -33,7 +34,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
         allowInsecure: !externalIngress
       }
       registries: [{ server: acrServer, username: 'container-apps-pull', passwordSecretRef: 'registry-password' }]
-      secrets: concat(secrets, [{ name: 'registry-password', value: registryPassword }])
+      secrets: concat(map(items(appSecrets), secret => { name: secret.key, value: string(secret.value) }), [{ name: 'registry-password', value: registryPassword }])
     }
     template: {
       containers: [
