@@ -37,3 +37,18 @@ def test_wait_reports_stage_and_last_status(smoke, monkeypatch, capsys):
     assert 'HTTP 503' in output
     assert 'secret' not in output
     assert smoke.CURRENT_CHECK == 'document processing'
+
+
+def test_readiness_recovers_after_transient_service_unavailable(smoke, monkeypatch):
+    monkeypatch.setattr(smoke.time, 'sleep', lambda _: None)
+    attempts = []
+    def read_only_check():
+        attempts.append(True)
+        response = requests.Response()
+        response.status_code = 503 if len(attempts) == 1 else 200
+        if response.status_code == 503:
+            raise requests.HTTPError(response=response)
+        return response
+    result = smoke.wait(read_only_check, 'authenticated staff access', attempts=2)
+    assert result.status_code == 200
+    assert len(attempts) == 2

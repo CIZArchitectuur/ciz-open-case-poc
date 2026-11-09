@@ -67,9 +67,8 @@ def main():
         'username': 'beoordelaar', 'password': PASSWORD,
     }).json()['access_token']
     staff = {'Authorization': f'Bearer {token}'}
-    stage('authenticated staff access')
-    call('GET', '/api/tasks', headers=staff)
-    print('PASS: authenticated staff access', flush=True)
+    # Operaton may still be starting after the API itself is ready. Retry only this read.
+    wait(lambda: call('GET', '/api/tasks', headers=staff), 'authenticated staff access', attempts=12)
     payload = unique_personal_data() | {
         'applicantId': f'azure-smoke-{uuid.uuid4()}', 'clientName': 'Fictieve deploymenttest',
         'birthDate': '1980-01-01', 'permanentCareNeed': True, 'permanentSupervision': True,
