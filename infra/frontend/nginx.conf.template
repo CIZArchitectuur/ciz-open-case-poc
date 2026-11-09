@@ -23,7 +23,7 @@ server {
         set $identity_url ${IDENTITY_URL};
         proxy_pass $identity_url$request_uri;
         proxy_connect_timeout 3s;
-        proxy_read_timeout 30s;
+        proxy_read_timeout 120s;
         proxy_set_header Host $proxy_host;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Proto https;
@@ -34,7 +34,7 @@ server {
         set $gateway_url ${GATEWAY_URL};
         proxy_pass $gateway_url$request_uri;
         proxy_connect_timeout 3s;
-        proxy_read_timeout 20s;
+        proxy_read_timeout 120s;
         proxy_send_timeout 20s;
         proxy_set_header Host $proxy_host;
         proxy_set_header X-Correlation-ID $request_id;
