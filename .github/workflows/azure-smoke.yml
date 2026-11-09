@@ -1,0 +1,26 @@
+name: Azure smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FRONTEND_URL: https://ciz-dev-frontend.blacktree-22b1bed9.westeurope.azurecontainerapps.io
+      DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the deployed stack with fictional data
+        run: |
+          docker build -f tests/Dockerfile -t ciz-azure-smoke .
+          docker run --rm -e FRONTEND_URL -e DEMO_USER_PASSWORD ciz-azure-smoke python tests/deployment/smoke.py
