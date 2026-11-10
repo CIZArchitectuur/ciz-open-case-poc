@@ -51,6 +51,13 @@ def wait(check, description, attempts=60):
     raise RuntimeError('Timed out')
 
 
+def wait_for_case_service(headers):
+    return wait(
+        lambda: call('GET', f'/api/cases/{uuid.uuid4()}', expected=404, headers=headers).status_code == 404,
+        'case-service readiness',
+    )
+
+
 def main():
     wait(lambda: call('GET', '/health').text == 'healthy', 'public frontend')
     discovery = wait(lambda: call('GET', '/auth/realms/ciz-poc/.well-known/openid-configuration').json(), 'identity discovery')
@@ -69,6 +76,8 @@ def main():
     staff = {'Authorization': f'Bearer {token}'}
     # Operaton may still be starting after the API itself is ready. Retry only this read.
     wait(lambda: call('GET', '/api/tasks', headers=staff), 'authenticated staff access', attempts=12)
+    # Warm the case API and its database with a safe lookup before the one-shot write.
+    wait_for_case_service(staff)
     payload = unique_personal_data() | {
         'applicantId': f'azure-smoke-{uuid.uuid4()}', 'clientName': 'Fictieve deploymenttest',
         'birthDate': '1980-01-01', 'permanentCareNeed': True, 'permanentSupervision': True,

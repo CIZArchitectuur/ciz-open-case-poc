@@ -52,3 +52,24 @@ def test_readiness_recovers_after_transient_service_unavailable(smoke, monkeypat
     result = smoke.wait(read_only_check, 'authenticated staff access', attempts=2)
     assert result.status_code == 200
     assert len(attempts) == 2
+
+def test_case_service_readiness_retries_a_safe_unknown_case_lookup(smoke, monkeypatch):
+    monkeypatch.setattr(smoke.time, 'sleep', lambda _: None)
+    attempts = []
+    def safe_lookup(method, path, expected, headers):
+        attempts.append((method, path, expected, headers))
+        response = requests.Response()
+        response.status_code = 503 if len(attempts) == 1 else 404
+        if response.status_code != expected:
+            raise requests.HTTPError(response=response)
+        return response
+    monkeypatch.setattr(smoke, 'call', safe_lookup)
+    headers = {'Authorization': 'Bearer test-token'}
+
+    result = smoke.wait_for_case_service(headers)
+
+    assert result is True
+    assert len(attempts) == 2
+    assert all(method == 'GET' and path.startswith('/api/cases/') and expected == 404
+               for method, path, expected, _ in attempts)
+    assert all(request_headers is headers for _, _, _, request_headers in attempts)
