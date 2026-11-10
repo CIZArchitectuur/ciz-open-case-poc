@@ -1,0 +1,29 @@
+name: Azure runtime diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: 53140781-c4dd-40a2-8a89-92127023d5fe
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Revision and replica health (no credentials)
+        run: |
+          az containerapp list -g ciz-open-case-poc-dev --query '[].{name:name,state:properties.runningStatus,latest:properties.latestRevisionName,ready:properties.latestReadyRevisionName}' -o table
+          for app in ciz-dev-case ciz-dev-document ciz-dev-s3 ciz-dev-bas ciz-dev-structuring; do
+            az containerapp revision list -g ciz-open-case-poc-dev -n "$app" --query '[?properties.active].{name:name,health:properties.healthState,state:properties.runningState,replicas:properties.replicas}' -o table
+          done
+      - name: Aggregate error categories without payloads or identifiers
+        run: |
+          az extension add --name log-analytics --allow-preview true --yes
+          az monitor log-analytics query -w b87eb418-23db-457b-9e68-300e46b092b2 --analytics-query "ContainerAppConsoleLogs_CL | where TimeGenerated > ago(12h) | where ContainerAppName_s has_any ('case','document','s3','bas','structuring') | where Log_s has_any ('Exception','ERROR','WARN') | extend exception=extract(@'([a-zA-Z0-9_.]+Exception)',1,Log_s), category=case(Log_s has 'timeout' or Log_s has 'timed out','timeout',Log_s has 'signature','signature',Log_s has 'denied','denied',Log_s has 'connection','connection','other') | summarize count(), latest=max(TimeGenerated) by ContainerAppName_s, exception, category | order by latest desc" -o table
