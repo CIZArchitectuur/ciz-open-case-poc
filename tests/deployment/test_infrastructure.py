@@ -58,12 +58,13 @@ class DeploymentContracts(unittest.TestCase):
         self.assertEqual([s['name'] for s in specs if s['external']], ['frontend'])
         for name in ('bas', 'workflow', 'status'):
             self.assertEqual(next(s for s in specs if s['name'] == name)['minReplicas'], 1)
-        for name in ('policy', 'document', 'case', 'assessment', 'frontend', 's3', 'keycloak'):
+        for name in ('policy', 'document', 'case', 'assessment', 'frontend', 'keycloak'):
             self.assertEqual(next(s for s in specs if s['name'] == name)['minReplicas'], 0)
 
     def test_documents_use_stateless_s3_gateway_and_managed_blob(self):
         specs = self.apps['variables']['specs']
         s3 = next(s for s in specs if s['name'] == 's3')
+        self.assertEqual(s3['minReplicas'], 1)
         self.assertEqual(s3['volumes'], [])
         self.assertEqual(s3['volumeMounts'], [])
         self.assertIn('andrewgaul/s3proxy:4.1.1@sha256:', s3['image'])
