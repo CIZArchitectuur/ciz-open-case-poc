@@ -399,7 +399,8 @@ var specs = [
     image: 'andrewgaul/s3proxy:4.1.1@sha256:87662b2a5afcdfa5f478a1c61650bae4c87bbd15f6ff2823236bcfd66ef7fe04'
     database: ''
     kafka: false
-    minReplicas: 0
+    // Camel checks the bucket during document-service startup.
+    minReplicas: 1
     cpu: '0.25'
     memory: '0.5Gi'
     readinessPath: '/healthz'
