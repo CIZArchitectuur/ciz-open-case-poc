@@ -13,7 +13,9 @@ for service in case-service bas-service assessment-service document-service poli
     --build-arg REGELRECHT_REVISION=89f43786b66ed270b066ae32a48332ce189c73a5
 done
 build_push processes processes/Dockerfile operaton-ciz
-build_push . pipeline-mock/Dockerfile pipeline-mock
+build_push . document-pipeline/Dockerfile pipeline-mock --target azure \
+    --build-arg PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu \
+    --secret id=github_token,env=PIPELINE_GITHUB_TOKEN
 build_push . infra/gateway/Dockerfile gateway --build-arg "ENVIRONMENT=$AZURE_ENVIRONMENT"
 build_push frontend frontend/Dockerfile frontend --target runtime \
   --build-arg "VITE_OIDC_AUTHORITY=$public_url/auth/realms/ciz-poc" \

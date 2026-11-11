@@ -109,7 +109,7 @@ public class PipelineRoutes extends RouteBuilder {
             String run = snapshot.path("run_id").asText();
             if (!run.matches("[a-zA-Z0-9_-]{1,100}")) throw new WebApplicationException("Invalid run",503);
             output.setRunId(run);
-            output.setModelId(snapshot.path("model_id").asText(""));
+            output.setModelId(snapshot.path("model_id").asText(null));
             var index = request(e,"/api/run/"+run+"/documents",null,null);
             // One uploaded PDF must map to exactly one document: never guess a source association.
             var documents = index.path("documents");

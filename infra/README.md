@@ -43,8 +43,13 @@ resource group, register subscription providers or grant Azure roles.
   Keycloak scales to zero, so the first login after inactivity may take longer.
 - Log Analytics has a 0.1 GB daily ingestion cap. Once the cap is reached,
   log ingestion may pause until the daily reset.
-- OCR and impairment analysis use explicitly labelled protocol mocks, as in CI.
-  The upstream private NLP pipeline and the OpenAI overlay are not deployed.
+- The pinned private document pipeline uses `hybrid_paddle` to call the CIZ BAS OCR
+  Container App in Sweden Central. It processes each PDF as one document,
+  produces classification units with page references, and runs without OpenAI.
+  The OCR ingress accepts anonymous requests, so use only fictional or approved
+  non-identifiable test documents. The pipeline retains one replica for its
+  in-process jobs. Impairment analysis uses an explicitly labelled mock.
+  [OCR pipeline documentation](https://github.com/CIZDigitaliseert/document_structuring_pipeline/blob/main/docs/pipeline.md#3b-ocr-pipeline)
 
 Consumption does **not** make the whole stack free when idle. NAT, its public IP,
 PostgreSQL, Event Hubs, ACR Basic, retained replicas, storage and logs have ongoing
@@ -63,6 +68,8 @@ Set the repository variable `AZURE_SUBSCRIPTION_ID` to the intended target
 subscription. For the CIZ architecture sandbox, use the subscription ID for
 `ciz_architecture_sbx`. Create the target resource group and grant the GitHub
 deployment identity Contributor on that group before dispatching the workflow.
+The optional repository variable `OCR_REMOTE_BASE_URL` overrides the BAS OCR
+HTTPS origin built into the pinned private pipeline.
 
 Repository secrets (never put values in a commit):
 
@@ -73,6 +80,7 @@ Repository secrets (never put values in a commit):
 | `S3_PROXY_PASSWORD` | S3 gateway credential; the backend uses a separate Blob account key |
 | `DEMO_USER_PASSWORD` | Password for both fictional demo users and the confidential smoke-test client |
 | `KEYCLOAK_ADMIN_PASSWORD` | Initial Keycloak bootstrap administrator password |
+| `PIPELINE_GITHUB_TOKEN` | Token with read access to the private `CIZDigitaliseert/document_structuring_pipeline` and `CIZDigitaliseert/cizd-nlp` repositories used to build the Azure image |
 
 Passwords must have at least 20 characters, meet each component's password policy
 and contain no newlines. Use independent generated values. The realm contains only
@@ -142,7 +150,9 @@ external ingress, then runs a containerized smoke test through the public URL:
 3. Authentication of the fictional reviewer and access to the staff queue.
 4. Creation of a fictional draft, PDF upload and byte-for-byte download.
 5. Submission through Kafka and creation of an Operaton task.
-6. BAS completion of the labelled OCR and impairment-analysis mocks.
+6. BAS OCR returns page-linked text and a stored source artifact, with up to
+   35 minutes from case submission to allow for GPU cold start and extraction.
+7. The labelled impairment-analysis mock completes.
 
 The fictional smoke-test record is retained; no real client data is required.
 Smoke tests do not retry non-idempotent writes. A failed smoke test fails the

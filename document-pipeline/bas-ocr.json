@@ -1,0 +1,17 @@
+{
+  "ocr": {"enabled": true, "backend": "hybrid_paddle", "service_mode": "remote"},
+  "units": {"enabled": true},
+  "subdocuments": {"enabled": false},
+  "subdoc_review": {"enabled": false},
+  "metadata": {"enabled": false},
+  "client_validation": {"enabled": false},
+  "classification": {"enabled": false},
+  "clinical_tags": {"enabled": false},
+  "bsn": {"enabled": false},
+  "subtypes": {"enabled": false},
+  "subtype_metadata_extractor": {"enabled": false},
+  "subtype_summarizer": {"enabled": false},
+  "llm_judge": {"enabled": false},
+  "signature_detection": {"enabled": false},
+  "model_cache_dir": "/data/models"
+}

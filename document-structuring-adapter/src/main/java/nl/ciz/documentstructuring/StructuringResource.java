@@ -10,17 +10,16 @@ import org.apache.camel.ProducerTemplate;
 
 @ApplicationScoped
 public class StructuringResource implements JobsApi {
-    @jakarta.ws.rs.core.Context jakarta.ws.rs.core.HttpHeaders requestHeaders;
     private final ProducerTemplate producer;
     public StructuringResource(ProducerTemplate producer) { this.producer = producer; }
-    public Response startStructuring(File body) {
-        return Response.accepted(call("direct:structure-submit",body)).build();
+    public Response startStructuring(File body,String correlationId,String traceparent,String tracestate) {
+        return Response.accepted(call("direct:structure-submit",body,headers(correlationId,traceparent,tracestate))).build();
     }
-    public Response getStructuring(String jobId) {
-        return Response.ok(call("direct:structure-poll",jobId)).build();
+    public Response getStructuring(String jobId,String correlationId,String traceparent,String tracestate) {
+        return Response.ok(call("direct:structure-poll",jobId,headers(correlationId,traceparent,tracestate))).build();
     }
-    private StructuringResult call(String route,Object body) {
-        try {return producer.requestBodyAndHeaders(route,body,headers(),StructuringResult.class);}
+    private StructuringResult call(String route,Object body,Map<String,Object> headers) {
+        try {return producer.requestBodyAndHeaders(route,body,headers,StructuringResult.class);}
         catch(Exception failure) {
             int status=503;
             for(Throwable cause=failure;cause!=null;cause=cause.getCause())
@@ -28,12 +27,11 @@ public class StructuringResource implements JobsApi {
             throw new jakarta.ws.rs.WebApplicationException("Document processing unavailable or invalid input",status);
         }
     }
-    private Map<String,Object> headers() {
+    private Map<String,Object> headers(String correlationId,String traceparent,String tracestate) {
         var output=new java.util.HashMap<String,Object>();
-        for(var key:new String[]{"traceparent","tracestate","X-Correlation-ID"}) {
-            var value=requestHeaders.getHeaderString(key);
-            if(value!=null) output.put(key,value);
-        }
+        if(correlationId!=null) output.put("X-Correlation-ID",correlationId);
+        if(traceparent!=null) output.put("traceparent",traceparent);
+        if(tracestate!=null) output.put("tracestate",tracestate);
         return output;
     }
 }

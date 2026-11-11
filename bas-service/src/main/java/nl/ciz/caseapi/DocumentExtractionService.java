@@ -6,6 +6,7 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.UUID;
 import nl.ciz.caseapi.generated.documentstructuring.api.DefaultApi;
 import nl.ciz.caseapi.generated.documentstructuring.model.StructuringResult;
@@ -22,11 +23,7 @@ public class DocumentExtractionService {
         this.api=api; this.documents=documents; this.mapper=mapper;
     }
     @Transactional
-    public DocumentExtraction start(UUID caseId, UUID documentId) {
-        return start(caseId,documentId,false);
-    }
-    @Transactional
-    public DocumentExtraction start(UUID caseId, UUID documentId, boolean force) {
+    public DocumentExtraction start(UUID caseId, UUID documentId, boolean force, Map<String,String> context) {
         BasSubmissionEntity.lockCase(caseId);
         var existing=DocumentExtractionEntity.<DocumentExtractionEntity>find("documentId = ?1 order by createdAt desc",documentId).firstResult();
         if(!force && existing!=null && existing.result.getStatus()!=StructuringResult.StatusEnum.FAILED
@@ -36,7 +33,8 @@ public class DocumentExtractionService {
         row.extractionId=UUID.randomUUID(); row.caseId=caseId; row.documentId=documentId; row.createdAt=Instant.now();
         try {
             if (!"application/pdf".equals(content.contentType())) throw new WebApplicationException("Alleen PDF wordt ondersteund.",400);
-            row.result=api.startStructuring(content.file());
+            row.result=api.startStructuring(content.file(),context.get("X-Correlation-ID"),
+                    context.get("traceparent"),context.get("tracestate"));
         }
         catch(WebApplicationException invalid) {throw invalid;}
         catch(Exception unavailable) { throw new WebApplicationException("Documentverwerking is tijdelijk niet beschikbaar.",503); }
@@ -45,13 +43,14 @@ public class DocumentExtractionService {
         return model(row);
     }
     @Transactional
-    public DocumentExtraction get(UUID caseId, UUID documentId) {
+    public DocumentExtraction get(UUID caseId, UUID documentId, Map<String,String> context) {
         var row=find(caseId,documentId);
         if(row.result.getStatus()==StructuringResult.StatusEnum.PROCESSING) {
             if(row.createdAt.isBefore(Instant.now().minusSeconds(3600))) row.result.setStatus(StructuringResult.StatusEnum.FAILED);
             else {
                 try {
-                    row.result=api.getStructuring(row.result.getJobId());
+                    row.result=api.getStructuring(row.result.getJobId(),context.get("X-Correlation-ID"),
+                            context.get("traceparent"),context.get("tracestate"));
                     if (row.result.getStatus()==StructuringResult.StatusEnum.READY && row.result.getClassificationUnits()!=null) {
                         row.artifactId=documents.storeArtifact(caseId, mapper.writeValueAsBytes(row.result));
                         row.result.setClassificationUnits(null);

@@ -198,12 +198,17 @@ This sends the demo PDF to OpenAI and may incur API charges. Use only the fictio
 The manually triggered [Azure deploy workflow](.github/workflows/deploy.yml) runs
 CI, deploys to the existing `ciz-open-case-poc-dev` resource group using the
 `github-ciz-open-case-poc` service principal with OIDC, then verifies the deployed
-API, authentication, document storage and asynchronous workflow.
+API, authentication, document storage and asynchronous workflow. The Azure
+document pipeline calls CIZ BAS OCR and processes each PDF as one document.
+Use fictional or approved non-identifiable test documents. The workflow uses
+`PIPELINE_GITHUB_TOKEN` to build the pinned private document pipeline.
 
 The Bicep templates configure VNet-integrated Container Apps on the Consumption
 workload profile, one public frontend, one static NAT egress IP, private PostgreSQL,
-Event Hubs' Kafka interface, and an internal stateless S3Proxy gateway backed by managed Azure Blob Storage. HTTP services can scale to zero; background
-consumers retain one replica. OCR and impairment analysis use labelled mocks.
+Event Hubs' Kafka interface, and an internal stateless S3Proxy gateway backed by
+managed Azure Blob Storage. Most HTTP services can scale to zero; the OCR pipeline
+and background consumers retain one replica. Impairment analysis uses a labelled
+mock.
 
 See [Azure deployment configuration](infra/README.md) for required secrets,
 federation, cost choices, migration limitations and the exact verification scope.

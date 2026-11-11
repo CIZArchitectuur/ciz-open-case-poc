@@ -73,3 +73,54 @@ def test_case_service_readiness_retries_a_safe_unknown_case_lookup(smoke, monkey
     assert all(method == 'GET' and path.startswith('/api/cases/') and expected == 404
                for method, path, expected, _ in attempts)
     assert all(request_headers is headers for _, _, _, request_headers in attempts)
+
+
+def test_bas_ocr_requires_provider_output_and_provenance(smoke, monkeypatch):
+    result = dict(status='READY', mock=False, providerVersion=smoke.BAS_OCR_VERSION,
+                  hasSourceArtifact=True, fragments=[{'text': 'Fictieve tekst', 'pages': [1]}])
+
+    class Response:
+        def json(self):
+            return result
+
+    monkeypatch.setattr(smoke, 'call', lambda *args, **kwargs: Response())
+    staff = lambda **kwargs: {}
+    smoke.verify_bas_ocr('/extraction', staff, smoke.time.monotonic() + 60)
+    result['mock'] = True
+    with pytest.raises(AssertionError, match='Expected provider-backed OCR'):
+        smoke.verify_bas_ocr('/extraction', staff, smoke.time.monotonic() + 60)
+
+
+def test_bas_ocr_stops_at_its_deadline(smoke, monkeypatch):
+    elapsed = [0]
+    monkeypatch.setattr(smoke.time, 'monotonic', lambda: elapsed[0])
+    monkeypatch.setattr(smoke.time, 'sleep', lambda duration: elapsed.__setitem__(0, elapsed[0] + duration))
+    timeouts = []
+
+    def unavailable(*args, timeout, **kwargs):
+        timeouts.append(timeout)
+        raise requests.Timeout()
+
+    monkeypatch.setattr(smoke, 'call', unavailable)
+    with pytest.raises(RuntimeError, match='Timed out'):
+        smoke.verify_bas_ocr('/extraction', lambda **kwargs: {}, deadline=11)
+    assert elapsed[0] == 11
+    assert timeouts == [11, 1]
+
+
+def test_staff_authentication_renews_before_expiry(smoke, monkeypatch):
+    elapsed = [0]
+    monkeypatch.setattr(smoke.time, 'monotonic', lambda: elapsed[0])
+    tokens = iter(['original', 'renewed'])
+
+    class Response:
+        def json(self):
+            return {'access_token': next(tokens), 'expires_in': 300}
+
+    monkeypatch.setattr(smoke, 'call', lambda *args, **kwargs: Response())
+    staff = smoke.staff_authentication()
+    assert staff() == {'Authorization': 'Bearer original'}
+    elapsed[0] = 269
+    assert staff() == {'Authorization': 'Bearer original'}
+    elapsed[0] = 270
+    assert staff() == {'Authorization': 'Bearer renewed'}

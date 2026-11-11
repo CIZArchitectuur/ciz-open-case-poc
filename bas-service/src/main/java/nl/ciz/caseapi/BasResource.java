@@ -18,18 +18,27 @@ public class BasResource implements CasesApi {
         return Response.accepted(runs.start(caseId,request,headers.getHeaderString("X-Correlation-ID"),headers.getHeaderString("traceparent"))).build();
     }
     public Response listBasRuns(UUID caseId) {return Response.ok(runs.list(caseId)).build();}
-    public Response startDocumentStructuring(UUID caseId,UUID documentId) {return Response.accepted(extraction.start(caseId,documentId)).build();}
-    public Response getDocumentStructuring(UUID caseId,UUID documentId) {return Response.ok(extraction.get(caseId,documentId)).build();}
+    public Response startDocumentStructuring(UUID caseId,UUID documentId) {
+        return Response.accepted(extraction.start(caseId,documentId,false,requestContext())).build();
+    }
+    public Response getDocumentStructuring(UUID caseId,UUID documentId) {
+        return Response.ok(extraction.get(caseId,documentId,requestContext())).build();
+    }
     public Response reviewDocumentStructuring(UUID caseId,UUID documentId,String actor,DocumentReview review) {
         return Response.ok(extraction.review(caseId,documentId,mapper.convertValue(review,nl.ciz.caseapi.generated.model.DocumentReview.class),actor)).build();
     }
     public Response startImpairmentAnalysis(UUID caseId) {
+        return Response.accepted(analysis.start(caseId,requestContext())).build();
+    }
+    private Map<String,String> requestContext() {
         var context=new HashMap<String,String>();
         for(var name:List.of("traceparent","tracestate","X-Correlation-ID")) {
-            var value=headers.getHeaderString(name); if(value!=null && value.length()<=512) context.put(name,value);
+            var value=headers.getHeaderString(name);
+            int maxLength="X-Correlation-ID".equals(name)?100:512;
+            if(value!=null && !value.isBlank() && value.length()<=maxLength) context.put(name,value);
         }
         context.putIfAbsent("X-Correlation-ID",UUID.randomUUID().toString());
-        return Response.accepted(analysis.start(caseId,context)).build();
+        return context;
     }
     public Response listImpairmentAnalyses(UUID caseId) {return Response.ok(analysis.list(caseId)).build();}
     public Response reviewImpairmentAnalysis(UUID caseId,UUID analysisId,String actor,AnalysisReview review) {

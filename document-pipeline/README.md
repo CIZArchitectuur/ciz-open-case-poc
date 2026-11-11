@@ -1,4 +1,12 @@
-# Optional local document-processing pipeline with OpenAI
+# Document-processing pipeline
+
+Azure builds the `azure` target from the same pinned pipeline revision. It
+processes each PDF as one document using CIZ BAS OCR for page inference. The
+runtime passes job correlation and trace headers to OCR, retains only technical
+job status, and skips loading the language models for disabled stages.
+See the [Azure deployment guide](../infra/README.md) for configuration.
+
+## Optional local document processing with OpenAI
 
 The default deterministic mock remains the standard configuration for CI and
 normal local development. For provider-backed extraction, the optional

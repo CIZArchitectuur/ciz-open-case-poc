@@ -13,6 +13,8 @@ from tests.ciz_facts import unique_personal_data
 BASE = os.environ['FRONTEND_URL'].rstrip('/')
 PASSWORD = os.environ['DEMO_USER_PASSWORD']
 CURRENT_CHECK = 'initialization'
+BAS_OCR_VERSION = 'a18b0c9-bas-ocr'
+OCR_BUDGET_SECONDS = 35 * 60
 
 
 def stage(description):
@@ -28,17 +30,19 @@ def safe_error(error):
     return type(error).__name__
 
 
-def call(method, path, expected=200, **kwargs):
-    response = requests.request(method, BASE + path, timeout=150, **kwargs)
+def call(method, path, expected=200, timeout=150, **kwargs):
+    response = requests.request(method, BASE + path, timeout=timeout, **kwargs)
     if response.status_code != expected:
         raise requests.HTTPError(response=response)
     return response
 
 
-def wait(check, description, attempts=60):
+def wait(check, description, attempts=60, *, deadline=None):
     stage(description)
     last_error = 'condition not satisfied'
-    for _ in range(attempts):
+    attempt = 0
+    while (attempts is None or attempt < attempts) and (deadline is None or time.monotonic() < deadline):
+        attempt += 1
         try:
             result = check()
             if result:
@@ -46,7 +50,8 @@ def wait(check, description, attempts=60):
                 return result
         except (requests.RequestException, RuntimeError, KeyError, ValueError) as error:
             last_error = safe_error(error)
-        time.sleep(10)
+        remaining = 10 if deadline is None else max(0, deadline - time.monotonic())
+        time.sleep(min(10, remaining))
     print(f'FAIL: {description}; last result: {last_error}', flush=True)
     raise RuntimeError('Timed out')
 
@@ -56,6 +61,47 @@ def wait_for_case_service(headers):
         lambda: call('GET', f'/api/cases/{uuid.uuid4()}', expected=404, headers=headers).status_code == 404,
         'case-service readiness',
     )
+
+
+def staff_authentication():
+    headers = None
+    renew_at = 0
+
+    def get_headers(*, timeout=150):
+        nonlocal headers, renew_at
+        now = time.monotonic()
+        if headers is None or now >= renew_at:
+            token = call('POST', '/auth/realms/ciz-poc/protocol/openid-connect/token', timeout=timeout, data={
+                'grant_type': 'password', 'client_id': 'ciz-test-harness', 'client_secret': PASSWORD,
+                'username': 'beoordelaar', 'password': PASSWORD,
+            }).json()
+            headers = {'Authorization': f"Bearer {token['access_token']}"}
+            renew_at = now + max(0, int(token['expires_in']) - 30)
+        return headers
+
+    return get_headers
+
+
+def verify_bas_ocr(path, get_staff_headers, deadline):
+    def check():
+        headers = get_staff_headers(timeout=min(20, deadline - time.monotonic()))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        response = call('GET', path, headers=headers, timeout=min(20, remaining)).json()
+        status = response.get('status')
+        assert status != 'FAILED', 'BAS OCR extraction failed'
+        if status != 'READY':
+            return False
+        assert response.get('mock') is False, 'Expected provider-backed OCR'
+        assert response.get('providerVersion') == BAS_OCR_VERSION, 'Unexpected BAS OCR pipeline version'
+        assert response.get('hasSourceArtifact') is True, 'OCR source artifact is missing'
+        fragments = response.get('fragments', [])
+        assert any(fragment.get('text', '').strip() and (fragment.get('page') or fragment.get('pages'))
+                   for fragment in fragments), 'Expected OCR text with a page reference'
+        return True
+
+    wait(check, 'BAS OCR and source artifact', attempts=None, deadline=deadline)
 
 
 def main():
@@ -69,15 +115,12 @@ def main():
         call('GET', path, expected=404)
     print('PASS: internal and admin routes blocked', flush=True)
     stage('demo token request')
-    token = call('POST', '/auth/realms/ciz-poc/protocol/openid-connect/token', data={
-        'grant_type': 'password', 'client_id': 'ciz-test-harness', 'client_secret': PASSWORD,
-        'username': 'beoordelaar', 'password': PASSWORD,
-    }).json()['access_token']
-    staff = {'Authorization': f'Bearer {token}'}
+    staff = staff_authentication()
+    staff()
     # Operaton may still be starting after the API itself is ready. Retry only this read.
-    wait(lambda: call('GET', '/api/tasks', headers=staff), 'authenticated staff access', attempts=12)
+    wait(lambda: call('GET', '/api/tasks', headers=staff()), 'authenticated staff access', attempts=12)
     # Warm the case API and its database with a safe lookup before the one-shot write.
-    wait_for_case_service(staff)
+    wait_for_case_service(staff())
     payload = unique_personal_data() | {
         'applicantId': f'azure-smoke-{uuid.uuid4()}', 'clientName': 'Fictieve deploymenttest',
         'birthDate': '1980-01-01', 'permanentCareNeed': True, 'permanentSupervision': True,
@@ -94,17 +137,18 @@ def main():
                              'X-Document-Content-Type': 'application/pdf'}).json()
     document_id = document['documentId']
     stage('document download')
-    downloaded = call('GET', f'/api/cases/{case_id}/documents/{document_id}/content', headers=staff)
+    downloaded = call('GET', f'/api/cases/{case_id}/documents/{document_id}/content', headers=staff())
     assert downloaded.content == pdf, 'Document round-trip differs'
     print('PASS: document storage round-trip', flush=True)
     stage('case submission')
     call('POST', f'/api/cases/{case_id}/submit')
+    ocr_deadline = time.monotonic() + OCR_BUDGET_SECONDS
     tasks_path = f'/api/cases/{case_id}/tasks'
-    wait(lambda: bool(call('GET', tasks_path, headers=staff).json()), 'Kafka submission and Operaton task')
+    wait(lambda: bool(call('GET', tasks_path, headers=staff()).json()), 'Kafka submission and Operaton task')
     extraction_path = f'/api/cases/{case_id}/documents/{document_id}/structuring'
-    wait(lambda: call('GET', extraction_path, headers=staff).json().get('status') == 'READY', 'BAS and labelled OCR mock')
+    verify_bas_ocr(extraction_path, staff, ocr_deadline)
     analyses_path = f'/api/cases/{case_id}/impairment-analyses'
-    wait(lambda: any(item['status'] == 'READY' for item in call('GET', analyses_path, headers=staff).json()), 'labelled impairment-analysis mock')
+    wait(lambda: any(item['status'] == 'READY' for item in call('GET', analyses_path, headers=staff()).json()), 'labelled impairment-analysis mock')
     print('PASS: Azure smoke checks completed (fictional test record retained)', flush=True)
 
 
