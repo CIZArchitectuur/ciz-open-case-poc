@@ -72,6 +72,8 @@ jobs:
       S3_PROXY_PASSWORD: ${{ secrets.S3_PROXY_PASSWORD }}
       DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
       KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
+      OCR_REMOTE_BASE_URL: ${{ vars.OCR_REMOTE_BASE_URL }}
+      PIPELINE_GITHUB_TOKEN: ${{ secrets.PIPELINE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate deployment configuration
@@ -120,7 +122,7 @@ jobs:
           docker run --rm -e FRONTEND_URL -e DEMO_USER_PASSWORD ciz-azure-smoke python tests/deployment/smoke.py
       - name: Deployment summary
         run: |
-          printf 'Frontend: %s\n\nConsumption workload profile, private PostgreSQL, one public application ingress and one NAT egress.\n\nOCR and impairment analysis use labelled mocks.\n' "$FRONTEND_URL" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Frontend: %s\n\nConsumption workload profile, private PostgreSQL, one public application ingress and one NAT egress.\n\nOCR uses the CIZ BAS service. Impairment analysis uses a labelled mock. Use only fictional or approved non-identifiable test documents.\n' "$FRONTEND_URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary credentials
         if: always()
         run: |

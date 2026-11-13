@@ -91,8 +91,29 @@ class DeploymentContracts(unittest.TestCase):
     def test_ocr_adapter_has_required_pipeline_configuration(self):
         adapter = next(s for s in self.apps['variables']['specs'] if s['name'] == 'structuring')
         env = {e['name']: e['value'] for e in adapter['env']}
-        self.assertEqual(json.loads(env['PIPELINE_CONFIG_JSON']), {})
-        self.assertEqual(env['PIPELINE_MOCK'], 'true')
+        self.assertEqual(env['PIPELINE_CONFIG_JSON'], "[variables('basOcrPipelineConfig')]")
+        config = json.loads(self.apps['variables']['basOcrPipelineConfig'])
+        self.assertEqual(config['ocr'], {'enabled': True, 'backend': 'hybrid_paddle', 'service_mode': 'remote'})
+        self.assertTrue(config['units']['enabled'])
+        for stage in ('subdocuments', 'subdoc_review', 'metadata', 'client_validation', 'classification',
+                      'clinical_tags', 'bsn', 'subtypes', 'subtype_metadata_extractor',
+                      'subtype_summarizer', 'llm_judge', 'signature_detection'):
+            self.assertFalse(config[stage]['enabled'], stage)
+        self.assertEqual(env['PIPELINE_MOCK'], 'false')
+        self.assertEqual(env['PIPELINE_VERSION'], 'a18b0c9-bas-ocr')
+        pipeline = next(s for s in self.apps['variables']['specs'] if s['name'] == 'pipeline-mock')
+        pipeline_env = {e['name']: e for e in pipeline['env']}
+        self.assertIn('pipeline-mock', pipeline['image'])
+        self.assertIn('imageTag', pipeline['image'])
+        self.assertEqual(pipeline['minReplicas'], 1)
+        self.assertEqual(pipeline['memory'], '2Gi')
+        self.assertEqual(pipeline['secretNames'], [])
+        self.assertEqual(pipeline_env['PIPELINE_MODEL_BACKEND']['value'], 'local')
+        self.assertEqual(pipeline_env['OCR_MODE']['value'], 'remote')
+        self.assertEqual(pipeline_env['OCR_REMOTE_BASE_URL']['value'], "[parameters('ocrRemoteBaseUrl')]")
+        self.assertEqual(self.apps['parameters']['ocrRemoteBaseUrl']['defaultValue'], '')
+        self.assertNotIn('openai', json.dumps(self.apps).lower())
+        self.assertFalse(any(name.startswith('CLOUD_LLM_') for name in pipeline_env))
 
     def test_case_clients_allow_consumption_cold_starts(self):
         case = next(s for s in self.apps['variables']['specs'] if s['name'] == 'case')
@@ -102,7 +123,8 @@ class DeploymentContracts(unittest.TestCase):
         self.assertEqual(env['OPERATON_READ_TIMEOUT_MS'], '30000')
 
     def test_sensitive_parameters_are_secure(self):
-        for name in ('registryPassword', 'postgresAdminPassword', 's3ProxyPassword', 'demoUserPassword', 'keycloakAdminPassword'):
+        for name in ('registryPassword', 'postgresAdminPassword', 's3ProxyPassword', 'demoUserPassword',
+                     'keycloakAdminPassword'):
             self.assertEqual(self.apps['parameters'][name]['type'], 'securestring')
 
     def test_nested_deployments_keep_app_credentials_secure(self):
@@ -113,7 +135,8 @@ class DeploymentContracts(unittest.TestCase):
     def test_missing_configuration_fails_without_echoing_secrets(self):
         env = dict(AZURE_CLIENT_ID='client', AZURE_SUFFIX='cizdev42',
                    POSTGRES_ADMIN_PASSWORD='secret-value-hidden-123456', S3_PROXY_PASSWORD='another-hidden-value-123456',
-                   DEMO_USER_PASSWORD='demo-secret-hidden-123456', KEYCLOAK_ADMIN_PASSWORD='admin-hidden-value-123456')
+                   DEMO_USER_PASSWORD='demo-secret-hidden-123456', KEYCLOAK_ADMIN_PASSWORD='admin-hidden-value-123456',
+                   PIPELINE_GITHUB_TOKEN='github-token-hidden')
         self.assertEqual(parameters.parameters('bootstrap', env)['parameters']['suffix']['value'], 'cizdev42')
         del env['DEMO_USER_PASSWORD']
         with self.assertRaisesRegex(ValueError, '^Missing repository secret: DEMO_USER_PASSWORD$'):
@@ -121,6 +144,28 @@ class DeploymentContracts(unittest.TestCase):
         env['DEMO_USER_PASSWORD'] = 'short'
         with self.assertRaisesRegex(ValueError, '^DEMO_USER_PASSWORD must have at least 20 characters and no newlines$'):
             parameters.parameters('bootstrap', env)
+        env['DEMO_USER_PASSWORD'] = 'demo-secret-hidden-123456'
+        del env['PIPELINE_GITHUB_TOKEN']
+        with self.assertRaisesRegex(ValueError, '^Missing repository secret: PIPELINE_GITHUB_TOKEN$'):
+            parameters.parameters('apps', env)
+
+    def test_azure_accepts_an_optional_https_ocr_origin(self):
+        env = dict(AZURE_CLIENT_ID='client', AZURE_SUFFIX='cizdev42',
+                   POSTGRES_ADMIN_PASSWORD='postgres-password-for-tests',
+                   S3_PROXY_PASSWORD='storage-password-for-tests',
+                   DEMO_USER_PASSWORD='demo-password-for-tests',
+                   KEYCLOAK_ADMIN_PASSWORD='keycloak-password-for-tests',
+                   PIPELINE_GITHUB_TOKEN='build-token', REGISTRY_PASSWORD='pull-token',
+                   DEFAULT_DOMAIN='example.invalid', IMAGE_TAG='test')
+        values = parameters.parameters('apps', env)['parameters']
+        self.assertNotIn('openAiApiKey', values)
+        self.assertNotIn('ocrRemoteBaseUrl', values)
+        env['OCR_REMOTE_BASE_URL'] = 'https://ocr.example.invalid/'
+        self.assertEqual(parameters.parameters('apps', env)['parameters']['ocrRemoteBaseUrl']['value'],
+                         'https://ocr.example.invalid')
+        env['OCR_REMOTE_BASE_URL'] = 'https://token@example.invalid'
+        with self.assertRaisesRegex(ValueError, '^OCR_REMOTE_BASE_URL must be an HTTPS origin'):
+            parameters.parameters('validate', env)
 
 
 if __name__ == '__main__':

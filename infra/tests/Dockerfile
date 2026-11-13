@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/azure-cli:2.89.0 AS contracts
 WORKDIR /workspace
 COPY infra ./infra
+COPY document-pipeline/bas-ocr.json ./document-pipeline/bas-ocr.json
 COPY security/keycloak/import ./security/keycloak/import
 RUN az bicep install && mkdir /compiled \
     && az bicep build --file infra/bootstrap.bicep --outfile /compiled/bootstrap.json \

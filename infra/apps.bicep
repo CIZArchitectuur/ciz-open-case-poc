@@ -14,6 +14,7 @@ param s3ProxyPassword string
 param demoUserPassword string
 @secure()
 param keycloakAdminPassword string
+param ocrRemoteBaseUrl string = ''
 param postgresAdminUser string = 'cizadmin'
 
 var prefix = 'ciz-open-case-${environment}'
@@ -59,6 +60,7 @@ var secretValues = {
   'realm-json': string(realm)
   'kafka-jaas': 'org.apache.kafka.common.security.plain.PlainLoginModule required username="$ConnectionString" password="${eventAccess.listKeys().primaryConnectionString}";'
 }
+var basOcrPipelineConfig = loadTextContent('../document-pipeline/bas-ocr.json')
 var commonEnv = [
   { name: 'OTEL_SDK_DISABLED', value: 'true' }
   { name: 'API_GATEWAY_URL', value: gatewayUrl }
@@ -258,9 +260,9 @@ var specs = [
     secretNames: []
     env: [
       { name: 'PIPELINE_BASE_URL', value: '${gatewayUrl}/internal/document-pipeline' }
-      { name: 'PIPELINE_VERSION', value: 'mock-v1' }
-      { name: 'PIPELINE_MOCK', value: 'true' }
-      { name: 'PIPELINE_CONFIG_JSON', value: '{}' }
+      { name: 'PIPELINE_VERSION', value: 'a18b0c9-bas-ocr' }
+      { name: 'PIPELINE_MOCK', value: 'false' }
+      { name: 'PIPELINE_CONFIG_JSON', value: basOcrPipelineConfig }
     ]
     args: []
     volumes: []
@@ -291,14 +293,20 @@ var specs = [
     image: '${acr.name}.azurecr.io/pipeline-mock:${imageTag}'
     database: ''
     kafka: false
-    minReplicas: 0
-    cpu: '0.25'
-    memory: '0.5Gi'
-    readinessPath: '/health'
+    minReplicas: 1
+    cpu: '1'
+    memory: '2Gi'
+    readinessPath: ''
     external: false
     port: 8080
     secretNames: []
-    env: []
+    env: [
+      { name: 'PIPELINE_MODEL_BACKEND', value: 'local' }
+      { name: 'OCR_MODE', value: 'remote' }
+      { name: 'OCR_REMOTE_BASE_URL', value: ocrRemoteBaseUrl }
+      { name: 'USE_AZURE_STORAGE', value: 'false' }
+      { name: 'DATA_SENSITIVE_DIR', value: '/data' }
+    ]
     args: []
     volumes: []
     volumeMounts: []

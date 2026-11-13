@@ -1,0 +1,79 @@
+diff --git a/src/ocr_client.py b/src/ocr_client.py
+index 422202c..d6e4aa7 100644
+--- a/src/ocr_client.py
++++ b/src/ocr_client.py
+@@ -277,0 +278,10 @@ def _emit(progress: Any, message: str) -> None:
++# Every PDF job gets its own spawned process. The headers also apply to OCR
++# requests issued by its worker threads.
++_TRACE_HEADERS: dict[str, str] = {}
++
++
++def set_trace_headers(headers: dict[str, str]) -> None:
++    global _TRACE_HEADERS
++    _TRACE_HEADERS = dict(headers)
++
++
+@@ -297 +307 @@ def probe_ready(base_url: str, *, timeout: Any = None) -> tuple[str, dict[str, A
+-        response = requests.get(url, timeout=timeout)
++        response = requests.get(url, headers=_TRACE_HEADERS, timeout=timeout)
+@@ -944 +954 @@ def _poll_result(base_url: str, request_id: str, deadline: float) -> requests.Re
+-            response = requests.get(url, timeout=(_connect_timeout_s(), 30))
++            response = requests.get(url, headers=_TRACE_HEADERS, timeout=(_connect_timeout_s(), 30))
+@@ -984 +994 @@ def _post_with_retry(
+-    headers = {"X-Request-Id": request_id}
++    headers = {**_TRACE_HEADERS, "X-Request-Id": request_id}
+@@ -1258 +1268 @@ def ocr_service_supports_vlm(*, timeout: int = 10) -> bool | None:
+-            resp = requests.get(url, timeout=(_connect_timeout_s(), timeout))
++            resp = requests.get(url, headers=_TRACE_HEADERS, timeout=(_connect_timeout_s(), timeout))
+diff --git a/src/orchestrator.py b/src/orchestrator.py
+index 67d9f5e..6fbe72b 100644
+--- a/src/orchestrator.py
++++ b/src/orchestrator.py
+@@ -176 +176 @@ class DocumentRestructuringOrchestrator:
+-        if self._subdoc_bundle is None:
++        if self._subdoc_bundle is None and os.environ.get("CIZ_BAS_OCR_ONLY") != "true":
+diff --git a/tools/app/app.py b/tools/app/app.py
+index 00076ba..4b505c1 100644
+--- a/tools/app/app.py
++++ b/tools/app/app.py
+@@ -1051,0 +1052 @@ from src.data_sensitive import (
++from src import ocr_client
+@@ -2014,0 +2016 @@ def _job_process_entry(
++    ocr_trace_headers: dict[str, str] | None = None,
+@@ -2015,0 +2018 @@ def _job_process_entry(
++    ocr_client.set_trace_headers(ocr_trace_headers or {})
+@@ -2153,0 +2157,2 @@ class PdfProcessingJob:
++        if BAS_OCR_ONLY:
++            return
+@@ -2166,0 +2172,2 @@ class PdfProcessingJob:
++            if BAS_OCR_ONLY:
++                return {"job_id": self.id, "status": self.status, "run_id": self.run_id}
+@@ -2303,0 +2311,3 @@ class LocalModelDownloadJob:
++BAS_OCR_ONLY = os.environ.get("CIZ_BAS_OCR_ONLY") == "true"
++OCR_TRACE_HEADERS = {"X-Correlation-ID": 100, "traceparent": 512, "tracestate": 512}
++
+@@ -2564,0 +2575 @@ def _run_pdf_processing_job(
++    ocr_trace_headers: dict[str, str] | None = None,
+@@ -2660,0 +2672 @@ def _run_pdf_processing_job(
++                ocr_trace_headers,
+@@ -6281,0 +6294,5 @@ def process_pdfs():
++    ocr_trace_headers = {}
++    for name, limit in OCR_TRACE_HEADERS.items():
++        value = request.headers.get(name, "").strip()
++        if 0 < len(value) <= limit and value.isascii() and value.isprintable():
++            ocr_trace_headers[name] = value
+@@ -6293,0 +6311 @@ def process_pdfs():
++            ocr_trace_headers,
+diff --git a/tools/pdf_batch_runner.py b/tools/pdf_batch_runner.py
+index 67d18f3..491e5f8 100644
+--- a/tools/pdf_batch_runner.py
++++ b/tools/pdf_batch_runner.py
+@@ -1351,0 +1352 @@ def run_pdf_batch_processing(
++    bas_ocr_only = os.environ.get("CIZ_BAS_OCR_ONLY") == "true"
+@@ -1360 +1361 @@ def run_pdf_batch_processing(
+-        auto_download_layoutlm=True,
++        auto_download_layoutlm=not bas_ocr_only,
+@@ -1369 +1370,2 @@ def run_pdf_batch_processing(
+-    ensure_model_bundles(orchestrator, backend_env)
++    if not bas_ocr_only:
++        ensure_model_bundles(orchestrator, backend_env)

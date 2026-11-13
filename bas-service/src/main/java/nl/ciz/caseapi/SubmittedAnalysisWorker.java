@@ -3,7 +3,7 @@ package nl.ciz.caseapi;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import java.util.Map;
+import java.util.HashMap;
 import nl.ciz.caseapi.generated.model.DocumentExtraction;
 
 @ApplicationScoped
@@ -31,20 +31,21 @@ public class SubmittedAnalysisWorker {
                 row.status="FAILED";row.errorCode="DOCUMENT_NOT_FOUND";return;
             }
             if(!row.components.contains("OCR") && !row.components.contains("DOSSIER")) {row.status="READY";return;}
+            var context=new HashMap<String,String>();
+            context.put("X-Correlation-ID",row.correlationId);
+            if(row.traceParent!=null) context.put("traceparent",row.traceParent);
             boolean ready=true;
             for(var id:row.documentIds) {
                 var existing=DocumentExtractionEntity.<DocumentExtractionEntity>find("caseId=?1 and documentId=?2 order by createdAt desc",row.caseId,id).firstResult();
                 if(existing==null && !row.components.contains("OCR")) {row.status="WAITING_FOR_SOURCES";return;}
                 var output=existing==null || (row.forceRerun && "QUEUED".equals(row.status))
-                        ?extraction.start(row.caseId,id,row.forceRerun):extraction.get(row.caseId,id);
+                        ?extraction.start(row.caseId,id,row.forceRerun,context):extraction.get(row.caseId,id,context);
                 if(output.getStatus()==DocumentExtraction.StatusEnum.FAILED) {row.status="FAILED";row.errorCode="EXTRACTION_FAILED";return;}
                 ready &= output.getStatus()==DocumentExtraction.StatusEnum.READY || output.getStatus()==DocumentExtraction.StatusEnum.REVIEWED;
             }
             row.status="EXTRACTING";
             if(ready) {
                 if(!row.components.contains("DOSSIER")) {row.status="READY";return;}
-                var context=new java.util.HashMap<String,String>();context.put("X-Correlation-ID",row.correlationId);
-                if(row.traceParent!=null) context.put("traceparent",row.traceParent);
                 var result=analysis.startSnapshot(row.caseId,context,row.documentIds);
                 if(new java.util.HashSet<>(result.getDocumentIds()).equals(new java.util.HashSet<>(row.documentIds))) {
                     row.analysisId=result.getAnalysisId(); row.status="ANALYSING";

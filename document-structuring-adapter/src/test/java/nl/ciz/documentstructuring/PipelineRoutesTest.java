@@ -15,14 +15,18 @@ class PipelineRoutesTest {
     @Test void submitPollAndFailuresStayNormalized() throws Exception {
         var calls=new AtomicInteger();
         var longOcrText="x".repeat(10_001);
+        var trace=Map.<String,Object>of("X-Correlation-ID","correlation-test",
+            "traceparent","00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01","tracestate","test=state");
         var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/", exchange -> {
             String path=exchange.getRequestURI().getPath();
+            if(!path.endsWith("/bad") && !path.endsWith("/error")) {
+                trace.forEach((name,value)->assertEquals(value,exchange.getRequestHeaders().getFirst(name)));
+            }
             String body;
             int status=200;
             if(path.equals("/api/process_pdfs")) {
                 calls.incrementAndGet();
-                assertEquals("correlation-test",exchange.getRequestHeaders().getFirst("X-Correlation-ID"));
                 var upload=new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8);
                 assertTrue(upload.contains("name=\"pdfs\""));
                 assertTrue(upload.contains("filename=\"document.pdf\""));
@@ -52,9 +56,9 @@ class PipelineRoutesTest {
             context.addRoutes(route); context.start();
             var producer=context.createProducerTemplate();
             var start=producer.requestBodyAndHeaders("direct:structure-submit",pdf.toFile(),
-                Map.of("X-Correlation-ID","correlation-test"),StructuringResult.class);
+                trace,StructuringResult.class);
             assertEquals("job1",start.getJobId()); assertEquals(1,calls.get());
-            var result=producer.requestBody("direct:structure-poll","job1",StructuringResult.class);
+            var result=producer.requestBodyAndHeaders("direct:structure-poll","job1",trace,StructuringResult.class);
             assertEquals(StructuringResult.StatusEnum.READY,result.getStatus());
             assertEquals(2,result.getFragments().size());
             assertEquals(longOcrText.length(),result.getFragments().stream().mapToInt(fragment->fragment.getText().length()).sum());

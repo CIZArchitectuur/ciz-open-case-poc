@@ -7,6 +7,10 @@ paths:
   /jobs:
     post:
       operationId: startStructuring
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/Tracestate'
       requestBody:
         required: true
         content:
@@ -25,6 +29,9 @@ paths:
       operationId: getStructuring
       parameters:
         - {name: jobId, in: path, required: true, schema: {type: string, pattern: '^[a-zA-Z0-9_-]{1,100}$'}}
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/Tracestate'
       responses:
         '200':
           description: Normalized result without upstream logs or filesystem paths
@@ -33,6 +40,19 @@ paths:
               schema: {$ref: '#/components/schemas/StructuringResult'}
         '503': {description: Pipeline unavailable}
 components:
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      schema: {type: string, maxLength: 100}
+    Traceparent:
+      name: traceparent
+      in: header
+      schema: {type: string, maxLength: 512}
+    Tracestate:
+      name: tracestate
+      in: header
+      schema: {type: string, maxLength: 512}
   schemas:
     StructuringResult:
       type: object
