@@ -294,8 +294,8 @@ var specs = [
     database: ''
     kafka: false
     minReplicas: 1
-    cpu: '1'
-    memory: '2Gi'
+    cpu: '0.75'
+    memory: '1.5Gi'
     readinessPath: ''
     external: false
     port: 8080

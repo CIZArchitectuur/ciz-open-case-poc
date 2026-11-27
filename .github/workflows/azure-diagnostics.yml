@@ -20,9 +20,17 @@ jobs:
       - name: Revision and replica health (no credentials)
         run: |
           az containerapp list -g ciz-open-case-poc-dev --query '[].{name:name,state:properties.runningStatus,latest:properties.latestRevisionName,ready:properties.latestReadyRevisionName}' -o table
-          for app in ciz-dev-case ciz-dev-document ciz-dev-s3 ciz-dev-bas ciz-dev-structuring; do
+          for app in ciz-dev-case ciz-dev-document ciz-dev-s3 ciz-dev-bas ciz-dev-structuring ciz-dev-pipeline-mock; do
             az containerapp revision list -g ciz-open-case-poc-dev -n "$app" --query '[?properties.active].{name:name,health:properties.healthState,state:properties.runningState,replicas:properties.replicas}' -o table
           done
+      - name: OCR pipeline allocation and peak usage
+        run: |
+          az containerapp show -g ciz-open-case-poc-dev -n ciz-dev-pipeline-mock \
+            --query 'properties.template.containers[0].resources.{cpu:cpu,memory:memory}' -o table
+          az monitor metrics list --resource-group ciz-open-case-poc-dev \
+            --resource ciz-dev-pipeline-mock --resource-type Microsoft.App/containerApps \
+            --metrics UsageNanoCores WorkingSetBytes --aggregation Maximum --interval 1h --offset 14d \
+            --query 'value[].{metric:name.value,peak:max(timeseries[].data[].maximum)}' -o table
       - name: Aggregate error categories without payloads or identifiers
         run: |
           az extension add --name log-analytics --allow-preview true --yes
