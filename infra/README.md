@@ -47,8 +47,9 @@ resource group, register subscription providers or grant Azure roles.
   Container App in Sweden Central. It processes each PDF as one document,
   produces classification units with page references, and runs without OpenAI.
   The OCR ingress accepts anonymous requests, so use only fictional or approved
-  non-identifiable test documents. The pipeline retains one replica for its
-  in-process jobs. Impairment analysis uses an explicitly labelled mock.
+  non-identifiable test documents. The pipeline retains one replica with 0.75 vCPU
+  and 1.5 GiB RAM for its in-process jobs. Impairment analysis uses an explicitly
+  labelled mock.
   [OCR pipeline documentation](https://github.com/CIZDigitaliseert/document_structuring_pipeline/blob/main/docs/pipeline.md#3b-ocr-pipeline)
 
 Consumption does **not** make the whole stack free when idle. NAT, its public IP,
